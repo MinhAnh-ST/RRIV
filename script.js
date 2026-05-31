@@ -11,7 +11,7 @@ let currentRefreshInterval = 1000;
 let lastNDVIData = null; // Biến lưu trữ dữ liệu NDVI mới nhất
 
 
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbw36eizTXx2YXbPQ53wiClReCK3Z7VwJJXBPMwUZQiN6a8MSa-f91kSoBe9nGxjARPfag/exec';
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwUZcS93E3y5erkod0n9_ht3V_jfvGIt0V21g4_hEfKU3bDc0_fHkNPQjhyNK8jIuthHw/exec';
 
 
 let historicalStore = {}; 
