@@ -6051,17 +6051,7 @@ async function sendAIMessage(question) {
 function sendQuickQuestion(q) { sendAIMessage(q); }
 
 
-function acvSetRange(range) {
-  currentTimeRange = range;
-  historicalCache = {};
-  ['day','week','month'].forEach(r => {
-    const b = document.getElementById('acv-btn-' + r);
-    if (b) b.classList.toggle('active', r === range);
-  });
-  const tu = document.getElementById('acv-update-time');
-  if (tu) tu.textContent = 'Cập nhật: ' + new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
-  renderAllCharts().then(() => acvUpdateSummary());
-}
+
 
 function acvUpdateSummary() {
   const active = stations.filter(s => s.data && s.data.length >= 8 &&
@@ -6088,6 +6078,16 @@ function acvUpdateSummary() {
   bdg('acv-badge-vwc',  avgVwc  >= st.humMin  && avgVwc  <= st.humMax);
   bdg('acv-badge-ph',   avgPh   >= st.phMin   && avgPh   <= st.phMax);
   bdg('acv-badge-ec',   true);
+}
+
+function acvSetRange(range) {
+  currentTimeRange = range;
+  ['day','week','month'].forEach(r => {
+    const b = document.getElementById('acv-btn-' + r);
+    if (b) b.classList.toggle('active', r === range);
+  });
+  historicalCache = {};
+  renderAllCharts().then(() => acvUpdateSummary());
 }
 
 // ============================================================
