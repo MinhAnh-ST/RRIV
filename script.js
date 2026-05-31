@@ -13,6 +13,7 @@ let lastNDVIData = null; // Biến lưu trữ dữ liệu NDVI mới nhất
 
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwetqw9fKgbu06-hNZKLypbybeVYSbqdFwuU4jZn-0e6AbvwiDnfJlbZOEGDcA8ouM1mg/exec';
 
+
 let historicalStore = {}; 
 const HISTORY_LIMIT = 50; 
 
@@ -4968,19 +4969,42 @@ async function downloadSDCardFile(fileName) {
 
 */
 
+async function fetchSDCardFiles() {
+  if (!canExportCSV()) {
+    showToast('Bạn không có quyền xuất dữ liệu CSV', 'error');
+    return [];
+  }
+  try {
+    const res = await fetch(`${SHEETS_URL}?action=getDates`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const dates = await res.json();
+    if (!dates || dates.length === 0) return [];
+    return dates.map(d => `${d}.csv`);
+  } catch (err) {
+    console.error('Lỗi lấy danh sách file:', err);
+    showToast('Không thể đọc danh sách file từ Google Sheets', 'error');
+    return [];
+  }
+}
+
 async function fetchCSVContent(fileName) {
   const dateKey = fileName.replace('.csv', '');
-  const res  = await fetch(`${SHEETS_URL}?action=getData&date=${dateKey}`);
-  const rows = await res.json();
-  if (!rows || rows.length === 0) return '';
+  try {
+    const res = await fetch(`${SHEETS_URL}?action=getData&date=${dateKey}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = await res.json();
+    if (!rows || rows.length === 0) return '';
 
-  // Chuyển thành CSV text
-  const headers = Object.keys(rows[0]);
-  const csvRows = [headers.join(',')];
-  rows.forEach(row => {
-    csvRows.push(headers.map(h => row[h] || '').join(','));
-  });
-  return csvRows.join('\n');
+    const headers = Object.keys(rows[0]);
+    const csvRows = [headers.join(',')];
+    rows.forEach(row => {
+      csvRows.push(headers.map(h => row[h] || '').join(','));
+    });
+    return csvRows.join('\n');
+  } catch (err) {
+    console.error('Lỗi lấy CSV:', err);
+    return '';
+  }
 }
 
 // ── Tải 1 file CSV ──
