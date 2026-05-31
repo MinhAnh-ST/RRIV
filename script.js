@@ -1497,7 +1497,7 @@ async function getHistoricalDataFromSD(stationId, range) {
 
 async function renderAllCharts() {
   const range = currentTimeRange;
-  const stationNames = stations.map(s => s.name);
+  const stationNames = stations.filter(s => !s.isNDVI).map(s => s.name);
   const container = document.getElementById('allChartsView');
 
   // Hiển thị loading
@@ -1564,28 +1564,39 @@ async function renderAllCharts() {
       const colorPalette = ['#5470c6', '#fac858', '#ee6666', '#73c0de', '#3ba272', '#fc8452'];
 
       function renderMultiLineChart(domId, dataKey, titleText, yName, unit, minY, maxY) {
-          const dom = document.getElementById(domId);
-          if (!dom) return null;
-          let chart = echarts.getInstanceByDom(dom);
-          if (!chart) chart = echarts.init(dom);
-
-          const series = allData.map((station, idx) => ({
-              name: station.name,
-              type: 'line',
-              data: station[dataKey] || [],
-              smooth: true,
-              lineStyle: { width: 2, color: colorPalette[idx % colorPalette.length] },
-              symbol: 'circle',
-              symbolSize: 4,
-              emphasis: { focus: 'series' }
-          }));
-
-          chart.setOption({
-              title: { text: titleText, left: 'left', textStyle: { fontSize: 12, color: '#999' } },
-              tooltip: { trigger: 'axis' },
-              legend: { data: stationNames, type: 'scroll', orient: 'horizontal', left: 'center', top: 0, itemWidth: 20 },
-              grid: { top: 30, bottom: 10, containLabel: true },
-              //xAxis: { type: 'category', boundaryGap: false, data: labels, axisLabel: { rotate: 30, interval: 'auto' } },
+        const dom = document.getElementById(domId);
+        if (!dom) return null;
+        let chart = echarts.getInstanceByDom(dom);
+        if (!chart) chart = echarts.init(dom);
+      
+        // ── CHỈ LẤY DATA CỦA TRẠM ĐẤT, BỎ NDVI ──
+        const soilData = allData.filter(d => {
+          const station = stations.find(s => s.name === d.name);
+          return station && !station.isNDVI;
+        });
+      
+        const series = soilData.map((station, idx) => ({
+          name: station.name,
+          type: 'line',
+          data: station[dataKey] || [],
+          smooth: true,
+          lineStyle: { width: 2, color: colorPalette[idx % colorPalette.length] },
+          symbol: 'circle',
+          symbolSize: 4,
+          emphasis: { focus: 'series' }
+        }));
+      
+        chart.setOption({
+          title: { text: titleText, left: 'left', textStyle: { fontSize: 12, color: '#999' } },
+          tooltip: { trigger: 'axis' },
+          legend: { 
+            data: soilData.map(d => d.name), // ← chỉ hiện tên trạm đất
+            type: 'scroll', 
+            orient: 'horizontal', 
+            left: 'center', 
+            top: 0, 
+            itemWidth: 20 
+          },
 
               dataZoom: [
                 { type: 'slider', bottom: 5, height: 20, start: 0, end: 100 },
