@@ -178,42 +178,7 @@ async function fetchRealDataFromGateway() {
       });
     
     stations = newStations;
-    // Thêm node NDVI từ Firebase
-const ndviNode = nodesData['ndvi'];
-if (ndviNode) {
-  let d = ndviNode;
-  const keys = Object.keys(ndviNode);
-  if (keys.length > 0 && keys[0].startsWith('-')) {
-    d = ndviNode[keys.sort().pop()];
-  }
-  const realLat = parseFloat(d.lat) || 0;
-  const realLng = parseFloat(d.lng) || 0;
-  const hasGPS  = realLat !== 0 && realLng !== 0;
-
-  stations.push({
-    id: 'NDVI_NODE',
-    name: 'Node NDVI',
-    isNDVI: true,
-    status: true,
-    data: [
-      d.red_up    || 0,   // [0]
-      d.nir_up    || 0,   // [1]
-      d.angle_up  || 0,   // [2]
-      d.red_down  || 0,   // [3]
-      d.nir_down  || 0,   // [4]
-      d.angle_down|| 0,   // [5]
-      d.ndvi      || 0,   // [6]
-      d.battery   || 0,   // [7]
-      0,                   // [8]
-      0                    // [9]
-    ],
-    location: {
-      lat: hasGPS ? realLat : 10.8231,
-      lng: hasGPS ? realLng : 106.6297,
-      isRealGPS: hasGPS
-    }
-  });
-}
+   
 
     // Cập nhật lịch sử cho tất cả trạm
     const nowLabel = new Date().toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
