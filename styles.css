@@ -665,14 +665,7 @@ html, body {
    ============================================ */
 
 /* ===== CONTAINER CHÍNH ===== */
-#chartView {
-  padding: 1px 1px !important;
-  height: calc(100vh - 2px) !important;
-  overflow-y: auto;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4e7eb 100%);
-  display: flex;
-  flex-direction: column;
-}
+
 
 /* ===== FILTER SECTION ===== */
 .filter-section {
@@ -978,10 +971,7 @@ html, body {
 
 /* Tablet (992px trở xuống) */
 @media (max-width: 992px) {
-  #chartView {
-    padding: 8px 10px !important;
-    height: calc(100vh - 55px) !important;
-  }
+  
   
   .filter-row {
     gap: 10px;
@@ -1009,10 +999,7 @@ html, body {
 
 /* Mobile (768px trở xuống) */
 @media (max-width: 768px) {
-  #chartView {
-    padding: 6px 8px !important;
-    height: calc(100vh - 50px) !important;
-  }
+  
   
   .filter-section {
     padding: 10px 12px;
@@ -1093,11 +1080,7 @@ html, body {
 
 /* ===== PRINT STYLES ===== */
 @media print {
-  #chartView {
-    height: auto !important;
-    overflow: visible !important;
-    background: white !important;
-  }
+  
   
   .chart-card {
     break-inside: avoid;
@@ -1280,9 +1263,7 @@ html, body {
     height: 150px;
   }
   
-  #chartView {
-    padding: 15px;
-  }
+  
 }
 
 @media (max-width: 768px) {
@@ -1308,10 +1289,7 @@ html, body {
     margin-top: 50px;
   }
   
-  #chartView {
-    padding: 10px;
-    padding-bottom: 60px;
-  }
+  
 }
 
 @media (max-width: 576px) {
@@ -2177,9 +2155,7 @@ footer, .footer, [class*="copyright"] {
   text-align: center;
 }
 
-#ndviView {
-  display: none;
-}
+
 /* ===== TRANG BIỂU ĐỒ TỔNG - 4 biểu đồ xếp dọc, cuộn ===== */
 #allChartsView {
   position: fixed;
@@ -2187,11 +2163,12 @@ footer, .footer, [class*="copyright"] {
   left: 0;
   right: 0;
   bottom: 0;
-  overflow-y: auto;        /* đổi từ hidden → auto */
-  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
   background: #f5f7fa;
-  padding: 12px 16px 20px;
+  overflow: hidden;
 }
+
 .all-charts-header {
   flex-shrink: 0;
   padding: 10px 16px;
@@ -2200,13 +2177,17 @@ footer, .footer, [class*="copyright"] {
   box-shadow: 0 2px 6px rgba(0,0,0,0.06);
 }
 
+/* ===== BODY: màn hình lớn 2 cột, nhỏ 1 cột ===== */
 .all-charts-body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 12px 16px 20px 16px;
-  display: flex;
-  flex-direction: column;
+
+  /* Màn hình lớn: lưới 2 cột, 2 hàng */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
   gap: 14px;
 }
 
@@ -2226,8 +2207,10 @@ footer, .footer, [class*="copyright"] {
   border-radius: 10px;
   box-shadow: 0 2px 10px rgba(0,0,0,0.07);
   border: 1px solid #e2e8f0;
-  flex-shrink: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* quan trọng để grid co được */
 }
 
 .all-chart-header {
@@ -2239,70 +2222,251 @@ footer, .footer, [class*="copyright"] {
   border-bottom: 1px solid #e2e8f0;
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .all-chart-body {
   padding: 8px 12px 12px 12px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
+/* Biểu đồ tự fill hết chiều cao card */
 #chartTempAll,
 #chartHumAll,
 #chartPhAll,
 #chartEcAll {
   width: 100%;
-  height: 340px;
+  flex: 1;
+  min-height: 0;
 }
 
-/* Màn hình lớn: biểu đồ cao hơn */
-@media (min-height: 900px) {
-  #chartTempAll,
-  #chartHumAll,
-  #chartPhAll,
-  #chartEcAll {
-    height: 380px;
-  }
-}
-
-/* Tablet */
-@media (max-width: 992px) {
-  #chartTempAll,
-  #chartHumAll,
-  #chartPhAll,
-  #chartEcAll {
-    height: 300px;
-  }
+/* ===== Tablet (<=1100px): vẫn 2 cột nhưng nhỏ hơn ===== */
+@media (max-width: 1100px) {
   .all-charts-body {
+    gap: 10px;
     padding: 10px 12px 20px 12px;
+  }
+}
+
+/* ===== Mobile (<=768px): chuyển sang 1 cột, scroll dọc ===== */
+@media (max-width: 768px) {
+  .all-charts-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    padding: 8px 10px 20px 10px;
     gap: 12px;
   }
-}
 
-/* Mobile */
-@media (max-width: 768px) {
+  .all-chart-card {
+    min-height: 400px;
+  }
+
+  #chartTempAll,
+  #chartHumAll,
+  #chartPhAll,
+  #chartEcAll {
+    height: 260px;
+    flex: none;
+  }
+
   .all-charts-header {
     padding: 8px 12px;
   }
   .all-charts-header h5 {
     font-size: 0.9rem;
   }
-  #chartTempAll,
-  #chartHumAll,
-  #chartPhAll,
-  #chartEcAll {
-    height: 260px;
-  }
-  .all-charts-body {
-    padding: 8px 10px 20px 10px;
-    gap: 10px;
-  }
 }
 
-/* Mobile nhỏ */
+/* ===== Mobile nhỏ (<=576px) ===== */
 @media (max-width: 576px) {
+  .all-chart-card {
+    min-height: 240px;
+  }
   #chartTempAll,
   #chartHumAll,
   #chartPhAll,
   #chartEcAll {
     height: 220px;
   }
+}
+
+
+/* ============================================
+   VIEW FIXES - views chồng nhau
+   ============================================ */
+
+/* chartView: fixed, scroll */
+#chartView {
+  position: fixed;
+  top: 50px;
+  left: 0;
+  right: 0;
+  bottom: 40px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  background: #f5f7fa;
+  padding: 8px;
+  box-sizing: border-box;
+}
+#chartView::-webkit-scrollbar { width: 5px; }
+#chartView::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 3px; }
+
+/* ndviView: fixed, scroll */
+#ndviView {
+  position: fixed;
+  top: 50px;
+  left: 0;
+  right: 0;
+  bottom: 40px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  background: #f5f7fa;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+/* settingsView: fixed, scroll */
+#settingsView {
+  position: fixed !important;
+  top: 50px !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 40px !important;
+  overflow-y: auto !important;
+  background: #f0f2f5 !important;
+  padding: 16px !important;
+  box-sizing: border-box !important;
+  height: auto !important;
+}
+
+/* weatherView: fixed, scroll */
+#weatherView {
+  position: fixed;
+  top: 50px;
+  left: 0;
+  right: 0;
+  bottom: 40px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  background: #f5f7fa;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+/* stationListView: fixed, scroll */
+#stationListView {
+  position: fixed;
+  top: 50px;
+  left: 0;
+  right: 0;
+  bottom: 40px;
+  overflow-y: auto;
+  background: #f5f7fa;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+/* stationDetail: fixed, scroll - KHÔNG set display:none vì showStation tạo mới */
+#stationDetail {
+  position: fixed;
+  top: 50px;
+  left: 0;
+  right: 0;
+  bottom: 40px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #f4f7f6;
+  box-sizing: border-box;
+}
+
+/* aiChatView */
+#aiChatView {
+  position: fixed;
+  top: 50px;
+  left: 0;
+  right: 0;
+  bottom: 40px;
+  flex-direction: column;
+  background: #f8f9fa;
+  z-index: 500;
+  box-sizing: border-box;
+}
+
+/* stationGrid: responsive grid */
+#stationGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 4px;
+  box-sizing: border-box;
+}
+#stationGrid > div {
+  width: 100% !important;
+  max-width: 100% !important;
+  flex: none !important;
+  padding: 0 !important;
+}
+@media (max-width: 1024px) {
+  #stationGrid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  #stationGrid { grid-template-columns: 1fr; gap: 8px; }
+}
+
+/* ===== FIX RESPONSIVE THANH SENSOR 411/412 ===== */
+.sensor-header-bar {
+  width: 100%;
+  height: auto !important;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+/* Ẩn mặt trời trên màn hình nhỏ */
+@media (max-width: 768px) {
+  .sensor-sun-box {
+    display: none !important;
+  }
+}
+
+/* Trên màn hình rất nhỏ: 2 box sensor xếp dọc */
+@media (max-width: 480px) {
+  .sensor-header-bar {
+    flex-wrap: wrap !important;
+    gap: 6px;
+  }
+  .sensor-header-bar .flex-fill {
+    flex: 1 1 calc(50% - 6px) !important;
+    min-width: 120px !important;
+  }
+}
+#weatherView:empty::before,
+#weatherView[data-loading]::before {
+  content: '';
+  display: block;
+  width: 48px;
+  height: 48px;
+  border: 5px solid #e3f2fd;
+  border-top-color: #0288d1;
+  border-radius: 50%;
+  animation: wh-spin 1s linear infinite;
+  margin: 120px auto 16px;
+}
+
+#weatherView:empty::after,
+#weatherView[data-loading]::after {
+  content: 'Đang tải thời tiết…';
+  display: block;
+  text-align: center;
+  color: #90a4ae;
+  font-size: 13px;
+}
+
+@keyframes wh-spin {
+  to { transform: rotate(360deg); }
 }
