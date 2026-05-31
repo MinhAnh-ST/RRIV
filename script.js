@@ -649,6 +649,7 @@ function createCustomMarker(station) {
 }
 
 function createStationPopup(station, index) {
+  console.log('[POPUP]', station.name, '| isNDVI:', station.isNDVI, '| data:', JSON.stringify(station.data));
   const hasData = station.isNDVI
     ? station.data && (station.data[2] !== 0 || station.data[5] !== 0 || station.data[6] !== 0 || station.data[7] !== 0)
     : station.data && (station.data[0] !== 0 || station.data[1] !== 0 || station.data[2] !== 0 || station.data[3] !== 0);
