@@ -627,6 +627,7 @@ function createCustomMarker(station) {
     ? station.data && (station.data[2] !== 0 || station.data[5] !== 0 || station.data[6] !== 0 || station.data[7] !== 0)
     : station.data && (station.data[0] !== 0 || station.data[1] !== 0 || station.data[2] !== 0 || station.data[3] !== 0);
 
+
   if (!hasData) {
     return L.divIcon({
       html: `<div class="custom-marker" style="background-color: #adb5bd; width: 32px; height: 32px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"><div style="transform: rotate(45deg); color: white; font-weight: bold; text-align: center; line-height: 28px; font-size: 14px;">${station.id}</div></div>`,
@@ -653,11 +654,10 @@ function createStationPopup(station, index) {/*Phiên bản 2.0 cập nhật 2/4
     ? station.data && (station.data[2] !== 0 || station.data[5] !== 0 || station.data[6] !== 0 || station.data[7] !== 0)
     : station.data && (station.data[0] !== 0 || station.data[1] !== 0 || station.data[2] !== 0 || station.data[3] !== 0);
 
-  const statusText = !hasData
-    ? '<span class="badge text-dark" style="background-color:#fd7e14;">Không có tín hiệu</span>'
-    : station.status
-        ? '<span class="badge bg-success">Đang hoạt động</span>'
-        : '<span class="badge bg-danger">Ngừng hoạt động</span>';
+    const statusText = station.status
+    ? '<span class="badge bg-success">Đang hoạt động</span>'
+    : '<span class="badge bg-danger">Ngừng hoạt động</span>';
+        
 
   const alerts = checkStationThresholds(station);
   let alertsHtml = '';
