@@ -1587,6 +1587,11 @@ async function renderAllCharts() {
               grid: { top: 30, bottom: 10, containLabel: true },
               //xAxis: { type: 'category', boundaryGap: false, data: labels, axisLabel: { rotate: 30, interval: 'auto' } },
 
+              dataZoom: [
+                { type: 'slider', bottom: 5, height: 20, start: 0, end: 100 },
+                { type: 'inside', start: 0, end: 100 }
+              ],
+              
               xAxis: {
                 type: 'category',
                 boundaryGap: false,
@@ -2067,7 +2072,7 @@ function renderStationGrid() {
   // ── Render từng card ──
   grid.innerHTML = '';
 
-  stations.slice(0, 6).forEach((station) => {
+  stations.filter(s => !s.isNDVI).slice(0, 6).forEach((station) => {
     const { phMin, phMax, humMin: vwcMin, humMax: vwcMax,
             tempMin, tempMax, batteryAlert: batMin } = settings.stations;
 
@@ -4333,7 +4338,7 @@ async function sendAllStationsDataToServer() {
   const pushCfg = settings.datasource.push;
   if (!pushCfg.enabled || !pushCfg.url) return;
 
-  for (const station of stations) {
+  for (const station of stations.filter(s => !s.isNDVI)) {
     const payload = buildPushPayload(station);
     try {
       const response = await fetch(pushCfg.url, {
