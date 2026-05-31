@@ -11,7 +11,7 @@ let currentRefreshInterval = 1000;
 let lastNDVIData = null; // Biến lưu trữ dữ liệu NDVI mới nhất
 
 
-
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyg1Nwcg_-Wd0TRt0VcM_rE9nZWNpbde7EdH80qNicRB95Apno98_QAQdcLt59KhtrFxA/exec';
 
 let historicalStore = {}; 
 const HISTORY_LIMIT = 50; 
@@ -4942,6 +4942,7 @@ async function updateStationAddress(lat, lng) {
 
 
 /*LƯU FILE CSV */
+/*
 
 async function fetchSDCardFiles() {
 
@@ -4983,52 +4984,221 @@ async function downloadSDCardFile(fileName) {
   }
 }
 
+*/
 
+async function fetchCSVContent(fileName) {
+  const dateKey = fileName.replace('.csv', '');
+  const res  = await fetch(`${SHEETS_URL}?action=getData&date=${dateKey}`);
+  const rows = await res.json();
+  if (!rows || rows.length === 0) return '';
+
+  // Chuyển thành CSV text
+  const headers = Object.keys(rows[0]);
+  const csvRows = [headers.join(',')];
+  rows.forEach(row => {
+    csvRows.push(headers.map(h => row[h] || '').join(','));
+  });
+  return csvRows.join('\n');
+}
+
+// ── Tải 1 file CSV ──
+async function downloadCSVFromSheets(fileName) {
+  try {
+    showToast(`⏳ Đang tải ${fileName}...`, 'info');
+    
+    const csvText = await fetchCSVContent(fileName);
+    if (!csvText) {
+      showToast(`Không có dữ liệu cho ${fileName}`, 'error');
+      return;
+    }
+
+    // Tạo file download
+    const BOM  = '\uFEFF'; // UTF-8 BOM cho Excel đọc được tiếng Việt
+    const blob = new Blob([BOM + csvText], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast(`✅ Đã tải ${fileName}`, 'success');
+
+  } catch(err) {
+    console.error('Lỗi tải CSV:', err);
+    showToast(`❌ Không thể tải ${fileName}`, 'error');
+  }
+}
+
+// ── Xem trước CSV ──
+async function previewCSVFromSheets(fileName) {
+  try {
+    Swal.fire({
+      title: `📄 ${fileName}`,
+      html: '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Đang tải...</div>',
+      showConfirmButton: false,
+      showCloseButton: true
+    });
+
+    const csvText = await fetchCSVContent(fileName);
+    if (!csvText) {
+      Swal.fire('Không có dữ liệu', '', 'info');
+      return;
+    }
+
+    // Parse CSV thành bảng HTML
+    const lines   = csvText.trim().split('\n');
+    const headers = lines[0].split(',');
+    const rows    = lines.slice(1, 21); // chỉ hiện 20 dòng đầu
+
+    const thead = `<tr>${headers.map(h => `<th style="font-size:11px;white-space:nowrap;padding:4px 8px;background:#f8f9fa">${h}</th>`).join('')}</tr>`;
+    const tbody = rows.map(row => {
+      const cells = row.split(',');
+      return `<tr>${cells.map(c => `<td style="font-size:11px;padding:3px 8px;white-space:nowrap">${c}</td>`).join('')}</tr>`;
+    }).join('');
+
+    Swal.fire({
+      title: `📄 ${fileName}`,
+      html: `
+        <div style="overflow-x:auto;max-height:400px;">
+          <table class="table table-sm table-bordered mb-0">
+            <thead>${thead}</thead>
+            <tbody>${tbody}</tbody>
+          </table>
+        </div>
+        <div style="font-size:11px;color:#adb5bd;margin-top:8px;">
+          Hiển thị ${Math.min(20, rows.length)} / ${lines.length - 1} dòng
+        </div>`,
+      width: '90%',
+      showCloseButton: true,
+      showConfirmButton: true,
+      confirmButtonText: '⬇️ Tải file này',
+    }).then(result => {
+      if (result.isConfirmed) {
+        downloadCSVFromSheets(fileName);
+      }
+    });
+
+  } catch(err) {
+    Swal.fire('Lỗi', err.message, 'error');
+  }
+}
+
+// ── Tải tất cả các ngày gộp thành 1 file ──
+async function downloadAllCSV() {
+  try {
+    Swal.fire({
+      title: 'Đang tổng hợp dữ liệu...',
+      didOpen: () => Swal.showLoading(),
+      allowOutsideClick: false
+    });
+
+    const files = await fetchSDCardFiles();
+    if (!files || files.length === 0) {
+      Swal.fire('Không có dữ liệu', '', 'info');
+      return;
+    }
+
+    let allRows   = [];
+    let hasHeader = false;
+
+    for (const file of files) {
+      const csvText = await fetchCSVContent(file);
+      if (!csvText) continue;
+
+      const lines = csvText.trim().split('\n');
+      if (!hasHeader) {
+        allRows.push(lines[0]); // header chỉ lấy 1 lần
+        hasHeader = true;
+      }
+      allRows.push(...lines.slice(1)); // bỏ header của các file sau
+    }
+
+    if (allRows.length <= 1) {
+      Swal.fire('Không có dữ liệu', '', 'info');
+      return;
+    }
+
+    const BOM      = '\uFEFF';
+    const csvText  = allRows.join('\n');
+    const blob     = new Blob([BOM + csvText], { type: 'text/csv;charset=utf-8;' });
+    const url      = URL.createObjectURL(blob);
+    const a        = document.createElement('a');
+    const dateStr  = new Date().toISOString().slice(0, 10);
+    a.href         = url;
+    a.download     = `RRIV_AllData_${dateStr}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    Swal.close();
+    showToast(`✅ Đã tải ${files.length} ngày dữ liệu`, 'success');
+
+  } catch(err) {
+    console.error('Lỗi tải tất cả CSV:', err);
+    Swal.fire('Lỗi', err.message, 'error');
+  }
+}
 
 async function showSensorLogFiles() {
-
   if (!canExportCSV()) {
     showToast('Bạn không có quyền xuất dữ liệu CSV', 'error');
     return;
   }
 
-  // ===== THÊM 3 DÒNG NÀY =====
   Swal.fire({
     title: 'Đang tải danh sách file...',
     didOpen: () => Swal.showLoading(),
     allowOutsideClick: false
   });
-  
-
-
 
   const files = await fetchSDCardFiles();
+  
   if (!files || files.length === 0) {
-      Swal.fire({
-          icon: 'info',
-          title: 'Không có file CSV',
-          text: 'Thẻ SD chưa có file dữ liệu nào. Hãy đợi gateway ghi dữ liệu.',
-          confirmButtonText: 'Đóng'
-      });
-      return;
+    Swal.fire({
+      icon: 'info',
+      title: 'Không có dữ liệu',
+      text: 'Chưa có dữ liệu nào được lưu.',
+      confirmButtonText: 'Đóng'
+    });
+    return;
   }
 
-  // Tạo danh sách nút bấm cho từng file
+  // Tạo danh sách nút bấm cho từng ngày
   const fileButtons = files.map(file => `
-      <button class="swal2-confirm swal2-styled" style="margin:5px; display:block; width:100%;" onclick="downloadSDCardFile('${file}')">
-          📄 ${file}
+    <div style="display:flex;gap:8px;margin:5px 0;">
+      <button class="swal2-confirm swal2-styled" 
+        style="flex:1;margin:0;" 
+        onclick="downloadCSVFromSheets('${file}')">
+        📄 ${file}
       </button>
+      <button class="swal2-confirm swal2-styled" 
+        style="background:#6c757d;margin:0;padding:6px 12px;" 
+        onclick="previewCSVFromSheets('${file}')">
+        👁 Xem
+      </button>
+    </div>
   `).join('');
 
   Swal.fire({
-      title: 'Chọn file CSV cần tải',
-      html: `<div style="max-height: 400px; overflow-y: auto;">${fileButtons}</div>`,
-      showConfirmButton: false,
-      showCloseButton: true,
-      focusConfirm: false
+    title: 'Chọn file CSV cần tải',
+    html: `
+      <div style="margin-bottom:10px;">
+        <button class="btn btn-success btn-sm w-100" onclick="downloadAllCSV()">
+          ⬇️ Tải tất cả (${files.length} ngày)
+        </button>
+      </div>
+      <div style="max-height:400px;overflow-y:auto;">
+        ${fileButtons}
+      </div>`,
+    showConfirmButton: false,
+    showCloseButton: true,
+    focusConfirm: false
   });
 }
-
 // Đảm bảo nút CSV gọi hàm đúng
 document.addEventListener('DOMContentLoaded', () => {
   const csvBtn = document.querySelector('.ios-btn[onclick="exportChartCSV()"]') ||
