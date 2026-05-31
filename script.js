@@ -213,6 +213,7 @@ if (ndviNode) {
       isRealGPS: hasGPS
     }
   });
+}
 
     // Cập nhật lịch sử cho tất cả trạm
     const nowLabel = new Date().toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
