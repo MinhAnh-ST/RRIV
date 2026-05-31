@@ -43,7 +43,7 @@ const MAP_CONFIG = {
   center: [10.8231, 106.6297],
   zoom: 14,
   minZoom: 6,
-  maxZoom: 18,
+  maxZoom: 36,
   tileLayer: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
   attribution: '© OpenStreetMap contributors'
 };
@@ -143,32 +143,20 @@ async function fetchRealDataFromGateway() {
     for (let i = 1; i <= 6; i++) {
       const node = nodesData[`node${i}`];
       if (!node) continue;
-
       let d = node;
       const keys = Object.keys(node);
       if (keys.length > 0 && keys[0].startsWith('-')) {
         d = node[keys.sort().pop()];
       }
-
       const realLat = parseFloat(d.lat) || 0;
       const realLng = parseFloat(d.lng) || 0;
       const hasGPS  = realLat !== 0 && realLng !== 0;
-
       newStations.push({
         id: `STA00${i}`,
         name: `Trạm ${i}`,
         isNDVI: false,
         status: true,
-        data: [
-          d.ph      || 0,
-          d.vwc     || 0,
-          d.ec      || 0,
-          d.temp    || 0,
-          0, 0, 0,
-          d.battery || 0,
-          0,
-          0
-        ],
+        data: [d.ph||0, d.vwc||0, d.ec||0, d.temp||0, 0, 0, 0, d.battery||0, 0, 0],
         location: {
           lat: hasGPS ? realLat : (10.8231 + (i * 0.001)),
           lng: hasGPS ? realLng : (106.6297 + (i * 0.001)),
@@ -177,6 +165,33 @@ async function fetchRealDataFromGateway() {
         }
       });
     }
+
+    // Thêm node NDVI
+    const ndviNode = nodesData['ndvi'];
+    if (ndviNode) {
+      let d = ndviNode;
+      const keys = Object.keys(ndviNode);
+      if (keys.length > 0 && keys[0].startsWith('-')) {
+        d = ndviNode[keys.sort().pop()];
+      }
+      const realLat = parseFloat(d.lat) || 0;
+      const realLng = parseFloat(d.lng) || 0;
+      const hasGPS  = realLat !== 0 && realLng !== 0;
+      newStations.push({
+        id: 'NDVI_NODE',
+        name: 'Node NDVI',
+        isNDVI: true,
+        status: true,
+        data: [d.red_up||0, d.nir_up||0, d.angle_up||0, d.red_down||0, d.nir_down||0, d.angle_down||0, d.ndvi||0, d.battery||0, 0, 0],
+        location: {
+          lat: hasGPS ? realLat : 10.8231,
+          lng: hasGPS ? realLng : 106.6297,
+          address: 'Node NDVI',
+          isRealGPS: hasGPS
+        }
+      });
+    }
+
     stations = newStations;
 
     // Cập nhật lịch sử cho tất cả trạm
@@ -190,11 +205,14 @@ async function fetchRealDataFromGateway() {
     // Cập nhật lại currentStation nếu đang xem chi tiết
     if (currentStation) {
       const updatedStation = stations.find(s => s.id === currentStation.id);
-      if (updatedStation) currentStation = updatedStation;
+      if (updatedStation) {
+        currentStation = updatedStation;
+      }
     }
 
-    updateAllDisplays();
+    updateAllDisplays(); // cập nhật bản đồ, grid, ...
 
+    // Nếu đang ở trang chi tiết trạm -> cập nhật biểu đồ và sidebar
     if (currentStation && document.getElementById('stationDetail')?.style.display !== 'none') {
       const store = historicalStore[currentStation.id];
       if (store && store.timestamps.length) {
@@ -211,7 +229,10 @@ async function fetchRealDataFromGateway() {
           });
         }
       }
-      if (currentStation.data) updateSidebarValues(currentStation.data);
+      // Cập nhật sidebar bằng dữ liệu mới nhất
+      if (currentStation.data) {
+        updateSidebarValues(currentStation.data);
+      }
     }
 
     if (document.getElementById('weatherView')?.style.display === 'block') {
@@ -220,7 +241,7 @@ async function fetchRealDataFromGateway() {
     }
 
   } catch (error) {
-    console.error('Lỗi lấy dữ liệu từ Firebase:', error);
+    console.error('Lỗi lấy dữ liệu từ gateway:', error);
   }
 }
 
@@ -234,20 +255,16 @@ async function fetchNDVIFromGateway() {
     if (!res.ok) throw new Error(`Lỗi HTTP ${res.status}`);
     let raw = await res.json();
     if (!raw) return;
-
     const keys = Object.keys(raw);
     if (keys.length > 0 && keys[0].startsWith('-')) {
       raw = raw[keys.sort().pop()];
     }
-
     const data = {
       valid: true,
-      ndvi: raw.ndvi      || 0,
-      S2_411: { red: raw.red_up || 0, nir: raw.nir_up || 0, angle: raw.angle_up || 0 },
-      S2_412: { red: raw.red_down || 0, nir: raw.nir_down || 0, angle: raw.angle_down || 0 },
-      node_battery: raw.battery || 0,
-      node_voltage: 0,
-      node_charge_mode: 0
+      ndvi: raw.ndvi || 0,
+      S2_411: { red: raw.red_up||0, nir: raw.nir_up||0, angle: raw.angle_up||0 },
+      S2_412: { red: raw.red_down||0, nir: raw.nir_down||0, angle: raw.angle_down||0 },
+      node_battery: raw.battery||0, node_voltage: 0, node_charge_mode: 0
     };
 
     if (data.valid) {
@@ -582,9 +599,8 @@ function addStationMarkers() {
       title: station.name
     }).addTo(map);
     
-    // 4. Gán nội dung Popup
-    const popupContent = createStationPopup(station, index);
-    marker.bindPopup(popupContent, {
+    // 4. Gán nội dung Popup - arrow function để tạo lại mỗi lần mở
+    marker.bindPopup(() => createStationPopup(station, index), {
       maxWidth: 300,
       className: 'station-popup'
     });
@@ -781,6 +797,10 @@ function showStationFromMap(index) {
   Object.values(stationMarkers).forEach(marker => {
     if (marker.isPopupOpen()) marker.closePopup();
   });
+  if (stations[index] && stations[index].isNDVI) {
+    showNDVI();
+    return;
+  }
   showStation(index);
 }
 
@@ -1583,40 +1603,38 @@ async function renderAllCharts() {
 
   console.log("allData[0] =", allData[0]);
 }
-async function refreshAllChartsWithFilter() {
-  const select = document.getElementById('timeRangeSelect');
-  if (select) currentTimeRange = select.value;
-  // Xóa cache cũ để tải lại dữ liệu mới theo range
-  historicalCache = {};
-  await renderAllCharts();
-  
-}
 
+async function refreshAllChartsWithFilter() {
+  historicalCache = {};
+  const tu = document.getElementById('acv-update-time');
+  if (tu) tu.textContent = 'Cập nhật: ' + new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
+  await renderAllCharts();
+  acvUpdateSummary();
+}
 
 
 function showAllCharts() {
   if (!requireLoginForStationDetail()) return;
   if (refreshTimer) clearInterval(refreshTimer);
   if (allChartsRefreshTimer) clearInterval(allChartsRefreshTimer);
-  
+
   hideAllViews();
   const allChartsView = document.getElementById('allChartsView');
   if (allChartsView) {
-      allChartsView.style.display = 'block';
-      // Reset về 'week' (hoặc 'day' tùy ý)
-      currentTimeRange = 'day';
-      historicalCache = {};
-      if (document.getElementById('timeRangeSelect')) {
-          document.getElementById('timeRangeSelect').value = 'day';
-      }
-      // Gọi render bất đồng bộ
-      renderAllCharts().then(() => {
-          // Sau khi vẽ xong, có thể set timer refresh tự động mỗi 5 phút nếu muốn
-          if (allChartsRefreshTimer) clearInterval(allChartsRefreshTimer);
-          allChartsRefreshTimer = setInterval(() => {
-            refreshAllChartsWithFilter();
-        }, 300000);
-      });
+    allChartsView.style.display = 'block';
+    currentTimeRange = 'week';
+    historicalCache = {};
+    ['day','week','month'].forEach(r => {
+      const b = document.getElementById('acv-btn-' + r);
+      if (b) b.classList.toggle('active', r === 'week');
+    });
+    const tu = document.getElementById('acv-update-time');
+    if (tu) tu.textContent = 'Cập nhật: ' + new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
+    renderAllCharts().then(() => {
+      acvUpdateSummary();
+      if (allChartsRefreshTimer) clearInterval(allChartsRefreshTimer);
+      allChartsRefreshTimer = setInterval(refreshAllChartsWithFilter, 300000);
+    });
   }
   if (typeof updateNavActive === 'function') updateNavActive('allChartsView');
 }
@@ -1648,8 +1666,8 @@ window.addEventListener('resize', function() {
 function hideAllViews() {
   const views = [
     'mainDashboard', 'stationListView', 'stationDetail', 'chartView',
-    'alertsView', 'settingsView', 'agriAssistantView', 
-    'utilitiesView', 'weatherView', 'aboutView','allChartsView','ndviView' 
+    'alertsView', 'settingsView', 'agriAssistantView',
+    'utilitiesView', 'weatherView', 'aboutView', 'allChartsView', 'ndviView', 'aiChatView','aiExpertView','manualDataView'
   ];
   
   views.forEach(id => {
@@ -1909,130 +1927,262 @@ function updateSunPathUI() {
   sunIcon.style.top = `${100 - y}%`;
 }
 
+
 function renderStationGrid() {
   const grid = document.getElementById('stationGrid');
- 
   if (!grid) return;
-  grid.innerHTML = ''; 
+
+  // ── CSS nhúng thẳng (chỉ inject 1 lần) ──
+  if (!document.getElementById('sgrid-style')) {
+    const s = document.createElement('style');
+    s.id = 'sgrid-style';
+    s.textContent = `
+      #chartView { background: #f0f2f5; padding: 10px; }
+      .sg-header { background:#fff; border-radius:10px; padding:10px 14px; margin-bottom:10px;
+        display:flex; align-items:center; justify-content:space-between;
+        border:0.5px solid #e9ecef; flex-wrap:wrap; gap:8px; }
+      .sg-pill { font-size:11px; padding:3px 10px; border-radius:20px; font-weight:500; }
+      #stationGrid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+      @media(max-width:1024px){ #stationGrid { grid-template-columns:repeat(2,1fr); } }
+      @media(max-width:600px) { #stationGrid { grid-template-columns:1fr; } }
+      .sg-card { background:#fff; border-radius:12px; border:1px solid #e9ecef;
+        overflow:hidden; transition:box-shadow .2s, border-color .2s; display:flex; flex-direction:column; }
+      .sg-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.09); }
+      .sg-card.sg-alert { border-color:#ffc107; }
+      .sg-card.sg-offline { opacity:.65; }
+      .sg-card-header { padding:9px 12px 8px; display:flex; align-items:center;
+        justify-content:space-between; border-bottom:1px solid #f5f5f5; }
+      .sg-name { font-size:13px; font-weight:600; color:#212529;
+        display:flex; align-items:center; gap:7px; }
+      .sg-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+      .sg-dot.on  { background:#28a745; box-shadow:0 0 0 2px #d4edda; }
+      .sg-dot.off { background:#adb5bd; }
+      .sg-dot.alr { background:#ffc107; box-shadow:0 0 0 2px #fff3cd; }
+      .sg-badge { font-size:10px; padding:2px 7px; border-radius:10px; font-weight:500; white-space:nowrap; }
+      .sg-metrics { display:grid; grid-template-columns:repeat(4,1fr); }
+      .sg-metric { padding:8px 4px 6px; text-align:center; }
+      .sg-metric:not(:last-child) { border-right:1px solid #f5f5f5; }
+      .sg-metric.warn { background:#fff8e1; }
+      .sg-mlabel { font-size:9px; color:#adb5bd; text-transform:uppercase; letter-spacing:.3px; margin-bottom:3px; }
+      .sg-mval { font-size:17px; font-weight:600; line-height:1; }
+      .sg-munit { font-size:9px; color:#adb5bd; margin-top:1px; min-height:11px; }
+      .sg-bar-track { height:3px; border-radius:2px; background:#f0f0f0; margin-top:5px; overflow:hidden; }
+      .sg-bar-fill  { height:100%; border-radius:2px; transition:width .5s; }
+      .sg-footer { padding:7px 12px; display:flex; align-items:center;
+        justify-content:space-between; margin-top:auto; border-top:1px solid #f5f5f5; flex-wrap:wrap; gap:4px; }
+      .sg-bat-wrap { display:flex; align-items:center; gap:4px; }
+      .sg-bat-shell { width:26px; height:11px; border:1.5px solid #adb5bd; border-radius:2px; padding:1px; display:inline-flex; align-items:center; }
+      .sg-bat-tip { width:2px; height:5px; background:#adb5bd; border-radius:0 1px 1px 0; margin-left:1px; flex-shrink:0; }
+      .sg-bat-inner { height:100%; border-radius:1px; transition:width .4s; }
+      .sg-gps { font-size:10px; color:#ced4da; }
+      .sg-alert-tag { font-size:10px; padding:2px 7px; border-radius:8px;
+        background:#fff3cd; color:#856404; display:flex; align-items:center; gap:3px; }
+      .sg-no-signal { padding:18px 12px; text-align:center; flex:1; display:flex;
+        flex-direction:column; align-items:center; justify-content:center; gap:6px; }
+      .sg-no-signal i { font-size:26px; color:#dee2e6; }
+    `;
+    document.head.appendChild(s);
+  }
+
+  // ── Header tổng quan ──
+  const totalOnline  = stations.filter(s => s.status && s.data && s.data.length > 0 && (s.data[0]!==0||s.data[1]!==0||s.data[3]!==0)).length;
+  const totalAlert   = stations.filter(s => checkStationThresholds(s).length > 0).length;
+  const totalOffline = stations.filter(s => !s.status || !s.data || s.data.length === 0).length;
+  const nowStr       = new Date().toLocaleTimeString('vi-VN');
+
+  let headerEl = document.getElementById('sg-monitor-header');
+  if (!headerEl) {
+    headerEl = document.createElement('div');
+    headerEl.id = 'sg-monitor-header';
+    headerEl.className = 'sg-header';
+    grid.parentElement.insertBefore(headerEl, grid);
+  }
+  headerEl.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span style="font-size:13px;font-weight:600;color:#212529;">Giám sát trạm</span>
+      <span class="sg-pill" style="background:#d4edda;color:#155724;">● ${totalOnline} online</span>
+      ${totalAlert  ? `<span class="sg-pill" style="background:#fff3cd;color:#856404;">⚠ ${totalAlert} cảnh báo</span>` : ''}
+      ${totalOffline ? `<span class="sg-pill" style="background:#f8d7da;color:#721c24;">✕ ${totalOffline} mất tín hiệu</span>` : ''}
+    </div>
+    <span style="font-size:11px;color:#adb5bd;">Cập nhật: ${nowStr}</span>
+  `;
+
+  // ── Helpers ──
+  const clamp = (v, lo, hi) => Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100));
+
+  function batColor(pct) {
+    return pct < 20 ? '#dc3545' : pct < 50 ? '#fd7e14' : '#28a745';
+  }
+
+  function metricColor(val, min, max, type) {
+    const ok = val >= min && val <= max;
+    if (type === 'ph')   return ok ? '#2d6a0f' : '#dc3545';
+    if (type === 'vwc')  return ok ? '#0d6efd' : '#dc3545';
+    if (type === 'ec')   return '#534ab7';
+    if (type === 'temp') return ok ? '#dc3545' : '#fd7e14';
+    return '#6c757d';
+  }
+
+  function barColor(val, min, max, type) {
+    const ok = val >= min && val <= max;
+    if (type === 'ph')   return ok ? '#2d6a0f' : '#dc3545';
+    if (type === 'vwc')  return ok ? '#0d6efd' : '#dc3545';
+    if (type === 'ec')   return '#534ab7';
+    if (type === 'temp') return ok ? '#dc3545' : '#fd7e14';
+    return '#adb5bd';
+  }
+
+  // ── Render từng card ──
+  grid.innerHTML = '';
 
   stations.slice(0, 6).forEach((station) => {
-    // Lấy ngưỡng từ settings
-    const phMin = settings.stations.phMin;
-    const phMax = settings.stations.phMax;
-    const humMin = settings.stations.humMin;
-    const humMax = settings.stations.humMax;
-    const tempMin = settings.stations.tempMin;
-    const tempMax = settings.stations.tempMax;
-    const batteryMin = settings.stations.batteryAlert;
-    
-    // Lấy giá trị
-    const ph = station.data[0];
-    const vwc = station.data[1];
-    const temp = station.data[3];
-    const battery = station.data[7].toFixed(1);
-    
-    // Xác định class cho từng giá trị
-    const phClass = (ph < phMin || ph > phMax) ? 'text-danger fw-bold' : '';
-    const vwcClass = (vwc < humMin || vwc > humMax) ? 'text-danger fw-bold' : '';
-    const tempClass = (temp < tempMin || temp > tempMax) ? 'text-danger fw-bold' : '';
-    const batteryClass = (battery < batteryMin) ? 'text-danger fw-bold' : '';
-    
-    // Tạo alert badge tổng (nếu cần)
+    const { phMin, phMax, humMin: vwcMin, humMax: vwcMax,
+            tempMin, tempMax, batteryAlert: batMin } = settings.stations;
+
+    const hasData = station.data && station.data.length >= 8 &&
+      (station.data[0] !== 0 || station.data[1] !== 0 || station.data[3] !== 0);
+
     const alerts = checkStationThresholds(station);
-    let alertBadge = '';
-    if (alerts.length > 0) {
-      alertBadge = `<div class="small text-danger mt-1"><i class="fas fa-exclamation-triangle"></i> ${alerts.length} cảnh báo</div>`;
+    const isAlert   = alerts.length > 0;
+    const isOffline = !station.status || !hasData;
+
+    // dot class
+    const dotCls = isOffline ? 'off' : isAlert ? 'alr' : 'on';
+
+    // badge
+    let badgeHtml;
+    if (isOffline) {
+      badgeHtml = `<span class="sg-badge" style="background:#f8f9fa;color:#6c757d;">CHƯA CÓ TÍN HIỆU</span>`;
+    } else if (isAlert) {
+      badgeHtml = `<span class="sg-badge" style="background:#fff3cd;color:#856404;">⚠ CẢNH BÁO</span>`;
+    } else {
+      badgeHtml = `<span class="sg-badge" style="background:#d4edda;color:#155724;">ONLINE</span>`;
     }
 
-    const statusText = station.status 
-      ? '<span class="badge bg-success-light text-success" style="font-size:0.6rem">ONLINE</span>' 
-      : '<span class="badge bg-danger-light text-danger" style="font-size:0.6rem">OFFLINE</span>';
+    // ── No-signal layout ──
+    if (isOffline) {
+      grid.innerHTML += `
+        <div class="sg-card sg-offline">
+          <div class="sg-card-header">
+            <div class="sg-name"><span class="sg-dot ${dotCls}"></span>${station.name}</div>
+            ${badgeHtml}
+          </div>
+          <div class="sg-no-signal">
+            <i class="fas fa-satellite-dish"></i>
+            <div style="font-size:12px;color:#adb5bd;">Chưa nhận được dữ liệu</div>
+            <div style="font-size:10px;color:#ced4da;">Kiểm tra kết nối thiết bị</div>
+          </div>
+          <div class="sg-footer">
+            <div class="sg-gps"><i class="fas fa-map-marker-alt"></i> ${station.location.lat.toFixed(4)}, ${station.location.lng.toFixed(4)}</div>
+            <span style="font-size:10px;color:#ced4da;">Pin: —</span>
+          </div>
+        </div>`;
+      return;
+    }
 
-    const nodeHtml = `
-      <div class="col-lg-4 col-md-6 col-node">
-        <div class="station-custom-card">
-          <div class="d-flex justify-content-between align-items-start">
-            <h6 class="mb-0 fw-bold" style="font-size: 0.9rem;">
-              <i class="fas fa-microchip me-1 text-primary"></i> ${station.name}
-            </h6>
-            ${statusText}
-          </div>
-          <hr>
-          <div class="sensor-title">Cảm biến ES PH SOIL 01</div>
-          <div class="data-row">
-            <span><i class="fas fa-vial text-warning me-1"></i> Độ pH:</span>
-            <strong class="${phClass}">${ph}</strong>
-          </div>
+    const ph   = station.data[0];
+    const vwc  = station.data[1];
+    const ec   = station.data[2];
+    const temp = station.data[3];
+    const bat  = parseFloat(station.data[7]);
+    const charging = station.data[8];
 
-          <hr>
-          <div class="sensor-title">Cảm biến TEROS 12</div>
-          <div class="data-row">
-            <span><i class="fas fa-water text-primary me-1"></i> Hàm lượng nước thể tích (VWC %):</span>
-            <strong class="${vwcClass}">${vwc}%</strong>
-          </div>
-          <div class="data-row">
-            <span><i class="fas fa-bolt text-secondary me-1"></i> Dẫn điện (EC):</span>
-            <strong>${station.data[2]} <small class="text-muted"> dS/m</small></strong>
-          </div>
-          <div class="data-row">
-            <span><i class="fas fa-thermometer-half text-danger me-1"></i> Nhiệt độ đất:</span>
-            <strong class="${tempClass}">${temp}°C</strong>
-          </div>
+    const phWarn   = ph < phMin || ph > phMax;
+    const vwcWarn  = vwc < vwcMin || vwc > vwcMax;
+    const tempWarn = temp < tempMin || temp > tempMax;
+    const batWarn  = bat < batMin;
 
-          <hr class="mt-auto">
-          <div class="d-flex justify-content-between align-items-center">
-            <div style="font-size: 0.65rem; color: #adb5bd;">
-              <i class="fas fa-map-marker-alt"></i> ${station.location.lat.toFixed(4)}, ${station.location.lng.toFixed(4)}
-            </div>
-            <div class="small">
-              <i class="fas fa-battery-three-quarters ${batteryClass.includes('danger') ? 'text-danger' : (station.data[7] < 30 ? 'text-danger' : 'text-success')} me-1"></i>
-              <strong class="${batteryClass}" style="font-size: 0.85rem;">${battery}%</strong>
-            </div>
-          </div>
-          ${alertBadge}
+    // bar widths
+    const phBar   = clamp(ph, 0, 14).toFixed(0);
+    const vwcBar  = vwc.toFixed(0);
+    const ecBar   = clamp(ec, 0, 5).toFixed(0);
+    const tempBar = clamp(temp, 10, 50).toFixed(0);
+
+    // battery
+    const batPct   = Math.min(100, Math.max(0, bat));
+    const batCol   = batColor(batPct);
+    const chargeStr = charging === 1 ? '⚡ Sạc' : charging === 2 ? '✅ Đầy' : '';
+
+    // alert footer tag
+    let alertTag = '';
+    if (alerts.length > 0) {
+      const first = alerts[0];
+      const icon = first.type.includes('pH') ? '🧪'
+        : first.type.includes('VWC') ? '💧'
+        : first.type.includes('Nhiệt') ? '🌡️' : '⚠️';
+      alertTag = `<div class="sg-alert-tag">${icon} ${first.text}</div>`;
+    }
+    if (batWarn && !alertTag) {
+      alertTag = `<div class="sg-alert-tag">🔋 Pin yếu (${bat.toFixed(0)}%)</div>`;
+    }
+
+    grid.innerHTML += `
+      <div class="sg-card${isAlert ? ' sg-alert' : ''}">
+        <div class="sg-card-header">
+          <div class="sg-name"><span class="sg-dot ${dotCls}"></span>${station.name}</div>
+          ${badgeHtml}
         </div>
-      </div>
-    `;
-    grid.innerHTML += nodeHtml;
+
+        <div class="sg-metrics">
+          <div class="sg-metric${phWarn ? ' warn' : ''}">
+            <div class="sg-mlabel">pH</div>
+            <div class="sg-mval" style="color:${metricColor(ph, phMin, phMax, 'ph')};">${ph}</div>
+            <div class="sg-munit">${phWarn ? '⚠' : '—'}</div>
+            <div class="sg-bar-track"><div class="sg-bar-fill" style="width:${phBar}%;background:${barColor(ph,phMin,phMax,'ph')};"></div></div>
+          </div>
+          <div class="sg-metric${vwcWarn ? ' warn' : ''}">
+            <div class="sg-mlabel">VWC</div>
+            <div class="sg-mval" style="color:${metricColor(vwc, vwcMin, vwcMax, 'vwc')};">${vwc}</div>
+            <div class="sg-munit">${vwcWarn ? '⚠ %' : '%'}</div>
+            <div class="sg-bar-track"><div class="sg-bar-fill" style="width:${vwcBar}%;background:${barColor(vwc,vwcMin,vwcMax,'vwc')};"></div></div>
+          </div>
+          <div class="sg-metric">
+            <div class="sg-mlabel">EC</div>
+            <div class="sg-mval" style="color:#534ab7;">${ec}</div>
+            <div class="sg-munit">dS/m</div>
+            <div class="sg-bar-track"><div class="sg-bar-fill" style="width:${ecBar}%;background:#534ab7;"></div></div>
+          </div>
+          <div class="sg-metric${tempWarn ? ' warn' : ''}">
+            <div class="sg-mlabel">Nhiệt độ</div>
+            <div class="sg-mval" style="color:${metricColor(temp, tempMin, tempMax, 'temp')};">${temp}</div>
+            <div class="sg-munit">${tempWarn ? '⚠ °C' : '°C'}</div>
+            <div class="sg-bar-track"><div class="sg-bar-fill" style="width:${tempBar}%;background:${barColor(temp,tempMin,tempMax,'temp')};"></div></div>
+          </div>
+        </div>
+
+        <div class="sg-footer">
+          <div class="sg-bat-wrap">
+            <div class="sg-bat-shell">
+              <div class="sg-bat-inner" style="width:${batPct}%;background:${batCol};"></div>
+            </div>
+            <div class="sg-bat-tip"></div>
+            <span style="font-size:11px;font-weight:500;color:${batCol};">${bat.toFixed(0)}%</span>
+            ${chargeStr ? `<span style="font-size:10px;color:#adb5bd;margin-left:2px;">${chargeStr}</span>` : ''}
+          </div>
+          ${alertTag || `<div class="sg-gps"><i class="fas fa-map-marker-alt"></i> ${station.location.lat.toFixed(4)}, ${station.location.lng.toFixed(4)}</div>`}
+        </div>
+      </div>`;
   });
 
-  
+  // ── Cập nhật sensor 411/412 header bar ──
+  if (stations && stations[0]) {
+    const red411  = lastNDVIData ? lastNDVIData.S2_411.red.toFixed(4)   : (stations[0].data[4] || '0.0');
+    const nir411  = lastNDVIData ? lastNDVIData.S2_411.nir.toFixed(4)   : (stations[0].data[5] || '0.0');
+    const tilt411 = lastNDVIData ? lastNDVIData.S2_411.angle.toFixed(1) : '0.0';
+    const red412  = lastNDVIData ? lastNDVIData.S2_412.red.toFixed(4)   : '0.0';
+    const nir412  = lastNDVIData ? lastNDVIData.S2_412.nir.toFixed(4)   : '0.0';
+    const tilt412 = lastNDVIData ? lastNDVIData.S2_412.angle.toFixed(1) : '0.0';
 
-if (stations && stations[0]) {
-  // --- LẤY DỮ LIỆU ---
-  // Nếu có lastNDVIData từ API thì lấy, nếu không thì lấy mặc định từ stations (đang là 0)
-  
-  // Cụm Sensor 411
-  const red411 = lastNDVIData ? lastNDVIData.S2_411.red.toFixed(4) : (stations[0].data[4] || '0.0');
-  const nir411 = lastNDVIData ? lastNDVIData.S2_411.nir.toFixed(4) : (stations[0].data[5] || '0.0');
-  const tilt411 = lastNDVIData ? lastNDVIData.S2_411.angle.toFixed(1) : '0.0';
+    const s = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    s('411-red', red411); s('411-nir', nir411); s('411-tilt', tilt411);
+    s('412-red', red412); s('412-nir', nir412); s('412-tilt', tilt412);
+  }
 
-  // Cụm Sensor 412
-  const red412 = lastNDVIData ? lastNDVIData.S2_412.red.toFixed(4) : '0.0';
-  const nir412 = lastNDVIData ? lastNDVIData.S2_412.nir.toFixed(4) : '0.0';
-  const tilt412 = lastNDVIData ? lastNDVIData.S2_412.angle.toFixed(1) : '0.0';
-
-  // --- ĐỔ VÀO HTML ---
-  
-  // Đổ dữ liệu Sensor 411
-  const mRed1 = document.getElementById('411-red');
-  const mNir1 = document.getElementById('411-nir');
-  const mTilt1 = document.getElementById('411-tilt');
-  if (mRed1) mRed1.textContent = red411;
-  if (mNir1) mNir1.textContent = nir411;
-  if (mTilt1) mTilt1.textContent = tilt411;
-
-  // Đổ dữ liệu Sensor 412
-  const mRed2 = document.getElementById('412-red');
-  const mNir2 = document.getElementById('412-nir');
-  const mTilt2 = document.getElementById('412-tilt');
-  if (mRed2) mRed2.textContent = red412;
-  if (mNir2) mNir2.textContent = nir412;
-  if (mTilt2) mTilt2.textContent = tilt412;
+  if (typeof updateSunPathUI === 'function') updateSunPathUI();
 }
 
-if (typeof updateSunPathUI === "function") updateSunPathUI();
-}
+
+
 function renderComparisonTable() {
   const tbody = document.getElementById('comparisonTableBody');
   if (!tbody) return;
@@ -4193,198 +4343,527 @@ const STATIONS = [
 ];
 */
 
-function initStationSelectFromRealStations() {
-  const select = document.getElementById('stationSelect');
-  if (!select) return;
+// ================================================================
+// HƯỚNG DẪN COPY-PASTE VÀO script.js
+//
+// Tìm dòng:    function initStationSelectFromRealStations() {
+// Xóa từ đó đến hết function displayForecast() { ... }
+// (tức là xóa đến ngay trước dòng: async function updateStationAddress)
+// Dán toàn bộ nội dung file này vào thay thế
+// ================================================================
 
-  // Giữ lại option "Tất cả trạm"
-  select.innerHTML = '<option value="all">Tất cả trạm (vị trí trung bình)</option>';
-
-  // Duyệt qua mảng stations (đã có dữ liệu từ gateway)
-  stations.forEach((station, idx) => {
-    if (station.location && typeof station.location.lat === 'number' && station.location.lng) {
-      const option = document.createElement('option');
-      option.value = idx;   // lưu index để tra cứu nhanh
-      option.textContent = station.name;
-      select.appendChild(option);
-    }
-  });
-
-  select.value = 'all';
-}
-// ==================== KHỞI TẠO TRANG ====================
-document.addEventListener('DOMContentLoaded', () => {
-  initStationSelect();
-  loadWeatherData(); // Tải dữ liệu mặc định (tất cả trạm, 3 ngày)
-});
-
-// Hiển thị dropdown trạm
-function initStationSelect() {
-  const select = document.getElementById('stationSelect');
-  if (!select) return;
-  select.innerHTML = '<option value="all">Tất cả trạm (vị trí trung bình)</option>';
-  STATIONS.forEach((station, idx) => {
-    const option = document.createElement('option');
-    option.value = idx;
-    option.textContent = station.name;
-    select.appendChild(option);
-  });
-}
-
-// ==================== HIỂN THỊ VIEW THỜI TIẾT ====================
-/*
-function showWeather() {
-  if (allChartsRefreshTimer) clearInterval(allChartsRefreshTimer);
-  if (refreshTimer) clearInterval(refreshTimer);
-  hideAllViews();
-  document.getElementById('weatherView').style.display = 'block';
-  updateNavActive('weatherView');
-
-  // Khởi tạo dropdown từ danh sách trạm thật
-  initStationSelectFromRealStations();
-  // Tải dữ liệu thời tiết
-  loadWeatherData();
-}
-*/
-
-async function showWeather() {
-  if (!requireLoginForStationDetail()) return;
-  if (allChartsRefreshTimer) clearInterval(allChartsRefreshTimer);
-  
-  if (refreshTimer) clearInterval(refreshTimer);
-  hideAllViews();
-  document.getElementById('weatherView').style.display = 'block';
-  updateNavActive('weatherView');
-
-  // Đợi dữ liệu trạm mới nhất từ gateway trước khi load thời tiết
-  await fetchRealDataFromGateway();
-
-  // Khởi tạo dropdown từ danh sách trạm thật
-  initStationSelectFromRealStations();
-
-  // Tải dữ liệu thời tiết (sẽ lấy giá trị mặc định từ daysSelect)
-  document.getElementById('stationSelect')?.addEventListener('change', () => loadWeatherData());
-document.getElementById('daysSelect')?.addEventListener('change', () => loadWeatherData());
-  loadWeatherData();
-}
-// ==================== LẤY DỮ LIỆU TỪ API ====================
-async function loadWeatherData() {
-  const container = document.getElementById('dailyForecastContainer');
-  if (!container) return;
-
-  // Hiển thị loading
-  container.innerHTML = `
-    <div class="col-12 text-center py-5">
-      <div class="spinner-border text-primary" role="status"></div>
-      <p class="mt-2">Đang tải dữ liệu thời tiết...</p>
-    </div>
+// ── CSS inject 1 lần ──
+(function injectWeatherCSS() {
+  if (document.getElementById('weather-style')) return;
+  const s = document.createElement('style');
+  s.id = 'weather-style';
+  s.textContent = `
+    #weatherView { background:#f0f2f5; padding:10px; display:flex; flex-direction:column; gap:10px; }
+    .wh-header { background:#fff; border-radius:12px; padding:12px 16px; border:0.5px solid #e9ecef;
+      display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+    .wh-loc-name { font-size:14px; font-weight:600; color:#212529; }
+    .wh-loc-sub  { font-size:11px; color:#adb5bd; }
+    .wh-select   { font-size:12px; padding:4px 10px; border-radius:8px;
+      border:0.5px solid #dee2e6; background:#f8f9fa; color:#495057; cursor:pointer; }
+    .wh-today { background:linear-gradient(135deg,#1565c0 0%,#0288d1 100%);
+      border-radius:12px; padding:16px; color:#fff;
+      display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    @media(max-width:600px){ .wh-today { grid-template-columns:1fr; } }
+    .wh-today-temp { font-size:52px; font-weight:300; line-height:1; margin:4px 0; }
+    .wh-today-desc { font-size:13px; opacity:.9; margin-bottom:8px; }
+    .wh-today-mm   { font-size:12px; opacity:.75; }
+    .wh-stat { display:flex; align-items:center; gap:8px;
+      background:rgba(255,255,255,.15); border-radius:8px; padding:7px 10px; }
+    .wh-stat-label { font-size:9px; opacity:.7; text-transform:uppercase; }
+    .wh-stat-val   { font-size:13px; font-weight:600; }
+    .wh-agri { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+    @media(max-width:700px){ .wh-agri { grid-template-columns:repeat(2,1fr); } }
+    @media(max-width:400px){ .wh-agri { grid-template-columns:1fr; } }
+    .wh-agri-card { border-radius:10px; padding:10px 12px;
+      display:flex; align-items:flex-start; gap:8px; }
+    .wh-agri-icon  { font-size:20px; flex-shrink:0; }
+    .wh-agri-label { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.3px; margin-bottom:2px; }
+    .wh-agri-val   { font-size:13px; font-weight:600; }
+    .wh-agri-sub   { font-size:10px; margin-top:2px; }
+    .wh-days { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+    @media(max-width:700px){ .wh-days { grid-template-columns:repeat(4,1fr); } }
+    @media(max-width:400px){ .wh-days { grid-template-columns:repeat(2,1fr); } }
+    .wh-day-card { background:#fff; border-radius:10px; padding:8px 6px; text-align:center;
+      border:0.5px solid #e9ecef; cursor:pointer; transition:all .15s; }
+    .wh-day-card:hover, .wh-day-card.active { border-color:#0288d1; background:#e3f2fd; }
+    .wh-day-name { font-size:10px; color:#6c757d; font-weight:500; }
+    .wh-day-date { font-size:9px;  color:#adb5bd; margin-bottom:4px; }
+    .wh-day-icon { font-size:22px; margin:3px 0; }
+    .wh-day-max  { font-size:13px; font-weight:600; color:#dc3545; }
+    .wh-day-min  { font-size:11px; color:#0d6efd; }
+    .wh-day-rain { font-size:9px;  color:#0288d1; margin-top:2px; }
+    .wh-panel { background:#fff; border-radius:12px; padding:14px; border:0.5px solid #e9ecef; }
+    .wh-panel-title { font-size:12px; font-weight:600; color:#495057;
+      margin-bottom:12px; display:flex; align-items:center; gap:6px; }
+    .wh-hourly { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; }
+    .wh-hour-card { background:#f8f9fa; border-radius:8px; padding:8px 10px;
+      text-align:center; min-width:58px; flex-shrink:0; }
+    .wh-hour-time { font-size:10px; color:#6c757d; }
+    .wh-hour-icon { font-size:18px; margin:3px 0; }
+    .wh-hour-temp { font-size:13px; font-weight:600; color:#212529; }
+    .wh-hour-rain { font-size:9px;  color:#0288d1; margin-top:2px; }
+    .wh-advice { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    @media(max-width:600px){ .wh-advice { grid-template-columns:1fr; } }
+    .wh-adv-item { border-radius:10px; padding:11px 13px;
+      display:flex; align-items:flex-start; gap:10px; }
+    .wh-adv-icon  { font-size:22px; flex-shrink:0; }
+    .wh-adv-title { font-size:12px; font-weight:600; margin-bottom:3px; }
+    .wh-adv-body  { font-size:11px; line-height:1.55; color:#495057; }
   `;
+  document.head.appendChild(s);
+})();
 
-  try {
-    const stationSelect = document.getElementById('stationSelect');
-    const daysSelect = document.getElementById('daysSelect');
-    const selectedValue = stationSelect.value;
-    const days = parseInt(daysSelect.value, 10);
-
-    let lat, lon;
-
-    if (selectedValue === 'all') {
-      // Tính trung bình tọa độ của các trạm có vị trí hợp lệ
-      const validStations = stations.filter(s => s.location && typeof s.location.lat === 'number');
-      if (validStations.length === 0) throw new Error('Không có trạm nào có tọa độ');
-      const sumLat = validStations.reduce((s, st) => s + st.location.lat, 0);
-      const sumLon = validStations.reduce((s, st) => s + st.location.lng, 0);
-      lat = sumLat / validStations.length;
-      lon = sumLon / validStations.length;
-    } else {
-      const idx = parseInt(selectedValue, 10);
-      const station = stations[idx];
-      if (!station || !station.location) throw new Error('Trạm không có tọa độ');
-      lat = station.location.lat;
-      lon = station.location.lng;
-    }
-
-    // Gọi API OpenWeatherMap
-    const url = `${BASE_URL}?lat=${lat}&lon=${lon}&units=metric&appid=${API_KEY}`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    displayForecast(data, days);
-  } catch (error) {
-    console.error('Lỗi thời tiết:', error);
-    container.innerHTML = `<div class="alert alert-danger">Không thể tải dữ liệu thời tiết. Lỗi: ${error.message}</div>`;
-  }
+// ── Helpers ──
+function wIconEmoji(code) {
+  if (!code) return '🌡️';
+  const id = code.replace('n','d');
+  const map = {
+    '01d':'☀️','02d':'🌤️','03d':'⛅','04d':'☁️',
+    '09d':'🌧️','10d':'🌦️','11d':'⛈️','13d':'❄️','50d':'🌫️'
+  };
+  return map[id] || '🌡️';
 }
 
-// ==================== HIỂN THỊ DỰ BÁO THEO NGÀY ====================
-function displayForecast(data, days) {
-  const container = document.getElementById('dailyForecastContainer');
-  if (!container) return;
+function wRainColor(pop) {
+  // pop: 0–1
+  if (pop >= 0.6) return '#dc3545';
+  if (pop >= 0.3) return '#fd7e14';
+  return '#0288d1';
+}
 
-  // Nhóm các mốc 3 giờ theo ngày (lấy theo ngày địa phương)
-  const dailyMap = new Map(); // key: YYYY-MM-DD, value: list of forecasts
-  data.list.forEach(item => {
-    const date = new Date(item.dt * 1000);
-    const dateKey = date.toLocaleDateString('sv-SE'); // YYYY-MM-DD
-    if (!dailyMap.has(dateKey)) {
-      dailyMap.set(dateKey, []);
-    }
-    dailyMap.get(dateKey).push(item);
-  });
+function wWindDir(deg) {
+  const dirs = ['B','ĐB','Đ','ĐN','N','TN','T','TB'];
+  return dirs[Math.round(deg / 45) % 8] || '—';
+}
 
-  // Chuyển thành mảng và giới hạn số ngày
-  let dailyEntries = Array.from(dailyMap.entries()).slice(0, days);
-  if (dailyEntries.length === 0) {
-    container.innerHTML = '<div class="col-12">Không có dữ liệu dự báo.</div>';
-    return;
+// ── Agri advice logic ──
+function wAgriAdvice(dayEntries) {
+  // dayEntries: mảng 7 ngày [{date,tempMax,tempMin,humidity,windSpeed,pop,rain}]
+  if (!dayEntries || dayEntries.length === 0) return [];
+
+  const today = dayEntries[0];
+  const next3Rain  = dayEntries.slice(1, 4).some(d => d.pop >= 0.6);
+  const todayRain  = today.pop >= 0.4;
+  const hotMidday  = today.tempMax >= 33;
+  const goodWind   = today.windSpeed <= 3;
+  const rainDays   = dayEntries.filter(d => d.pop >= 0.6);
+  const dryDays    = dayEntries.filter(d => d.pop < 0.2);
+
+  // Tưới nước
+  let water, waterSub, waterColor, waterBg;
+  if (todayRain || next3Rain) {
+    water = 'Không cần tưới hôm nay'; waterSub = `Mưa ${Math.round(today.pop*100)}% — đất đủ ẩm`;
+    waterColor = '#2d6a0f'; waterBg = '#e8f5e0';
+  } else if (today.humidity < 50) {
+    water = 'Cần tưới — đất khô'; waterSub = 'Độ ẩm KK thấp, tưới sáng sớm hoặc chiều mát';
+    waterColor = '#dc3545'; waterBg = '#fde8e8';
+  } else {
+    water = 'Tưới nhẹ nếu cần'; waterSub = 'Theo dõi VWC sensor để quyết định';
+    waterColor = '#e65100'; waterBg = '#fff3e0';
   }
 
-  // Xây dựng HTML cho từng ngày
-  let html = '';
-  for (const [dateKey, forecasts] of dailyEntries) {
-    // Tính nhiệt độ cao nhất, thấp nhất trong ngày
-    const temps = forecasts.map(f => f.main.temp);
-    const tempMax = Math.max(...temps);
-    const tempMin = Math.min(...temps);
-    // Lấy icon và mô tả của thời điểm giữa trưa (khoảng 12:00) hoặc dự báo đầu tiên
-    const noonForecast = forecasts.find(f => {
-      const hour = new Date(f.dt * 1000).getHours();
-      return hour >= 11 && hour <= 13;
-    }) || forecasts[0];
-    const iconCode = noonForecast.weather[0].icon;
-    const description = noonForecast.weather[0].description;
-    const iconUrl = `https://openweathermap.org/img/wn/${iconCode}@2x.png`;
+  // Bón phân
+  let fert, fertSub, fertColor, fertBg;
+  if (next3Rain) {
+    const rainDay = dayEntries.slice(1,4).find(d => d.pop >= 0.6);
+    fert = 'Bón ngay hôm nay hoặc mai';
+    fertSub = `Tránh bón trước ${rainDay ? rainDay.dayName : 'ngày mưa'} — dễ bị rửa trôi`;
+    fertColor = '#e65100'; fertBg = '#fff3e0';
+  } else if (todayRain) {
+    fert = 'Hoãn bón phân'; fertSub = 'Có mưa hôm nay — chờ đất ráo';
+    fertColor = '#dc3545'; fertBg = '#fde8e8';
+  } else {
+    fert = 'Thích hợp bón phân'; fertSub = 'Thời tiết ổn định, bón sáng sớm';
+    fertColor = '#2d6a0f'; fertBg = '#e8f5e0';
+  }
 
-    // Định dạng ngày hiển thị
-    const displayDate = new Date(dateKey);
-    const dayName = displayDate.toLocaleDateString('vi-VN', { weekday: 'long' });
-    const formattedDate = displayDate.toLocaleDateString('vi-VN');
+  // Phun thuốc
+  let spray, spraySub, sprayColor, sprayBg;
+  if (!goodWind) {
+    spray = 'Không phun — gió mạnh'; spraySub = `Gió ${today.windSpeed.toFixed(1)} m/s — thuốc bay xa`;
+    sprayColor = '#dc3545'; sprayBg = '#fde8e8';
+  } else if (todayRain) {
+    spray = 'Không phun — có mưa'; spraySub = 'Mưa làm loãng thuốc, mất hiệu quả';
+    sprayColor = '#dc3545'; sprayBg = '#fde8e8';
+  } else {
+    spray = 'Phun sáng sớm (6–9h)'; spraySub = `Gió ${today.windSpeed.toFixed(1)} m/s ✓ — trước khi nắng gắt`;
+    sprayColor = '#2d6a0f'; sprayBg = '#e8f5e0';
+  }
 
-    html += `
-      <div class="col-md-4 col-lg-3 mb-4">
-        <div class="card h-100 shadow-sm">
-          <div class="card-body text-center">
-            <h5 class="card-title">${dayName}</h5>
-            <p class="card-text text-muted">${formattedDate}</p>
-            <img src="${iconUrl}" alt="${description}" class="mb-2" style="width: 80px;">
-            <p class="mb-1">${description}</p>
-            <div class="d-flex justify-content-between mt-3">
-              <span><i class="fas fa-thermometer-high text-danger"></i> ${Math.round(tempMax)}°C</span>
-              <span><i class="fas fa-thermometer-low text-info"></i> ${Math.round(tempMin)}°C</span>
-            </div>
-            <div class="mt-2">
-              <i class="fas fa-tint"></i>  Độ ẩm không khí: ${noonForecast.main.humidity}%
-            </div>
+  // Cảnh báo
+  let warn, warnSub, warnColor, warnBg;
+  if (hotMidday && rainDays.length >= 2) {
+    warn = 'Nắng nóng + mưa lớn cuối tuần'; warnSub = `Nhiệt ${today.tempMax}°C 12–15h. ${rainDays.length} ngày mưa to — kiểm tra thoát nước`;
+    warnColor = '#b71c1c'; warnBg = '#fde8e8';
+  } else if (hotMidday) {
+    warn = `Nắng nóng 12–15h (${today.tempMax}°C)`; warnSub = 'UV cao — che phủ cây con, tưới gốc';
+    warnColor = '#e65100'; warnBg = '#fff3e0';
+  } else if (rainDays.length >= 3) {
+    warn = `Mưa kéo dài ${rainDays.length} ngày tới`; warnSub = 'Nguy cơ úng ngập — kiểm tra rãnh thoát nước';
+    warnColor = '#0d47a1'; warnBg = '#e3f2fd';
+  } else {
+    warn = 'Không có cảnh báo đặc biệt'; warnSub = 'Thời tiết thuận lợi cho canh tác';
+    warnColor = '#2d6a0f'; warnBg = '#e8f5e0';
+  }
+
+  // Khuyến nghị 7 ngày (advice panel)
+  let advWater, advFert, advSpray, advAlert;
+
+  // Water advice
+  const noWaterDays = rainDays.map(d => d.dayName).join(', ');
+  const dryDayNames = dryDays.map(d => d.dayName).join(', ');
+  advWater = rainDays.length > 0
+    ? `Ngưng tưới vào: ${noWaterDays}. ${dryDays.length > 0 ? 'Tưới bổ sung: ' + dryDayNames : ''}`
+    : 'Tưới đều theo VWC sensor — không có mưa lớn trong tuần.';
+
+  // Fert advice
+  const firstRainDay = dayEntries.findIndex(d => d.pop >= 0.6);
+  advFert = firstRainDay === 1
+    ? 'Bón ngay hôm nay (sáng sớm) vì ngày mai bắt đầu có mưa.'
+    : firstRainDay > 1
+    ? `Bón trước ngày ${dayEntries[firstRainDay]?.dayName || ''} để tránh rửa trôi.`
+    : 'Thời tiết ổn định cả tuần — bón theo lịch canh tác bình thường.';
+
+  // Spray advice
+  const goodSprayDays = dayEntries.filter(d => d.pop < 0.2 && d.windSpeed <= 3).map(d => d.dayName);
+  advSpray = goodSprayDays.length > 0
+    ? `Khung tốt để phun: ${goodSprayDays.join(', ')} — sáng sớm trước 9h.`
+    : 'Tuần này nhiều mưa và gió — hạn chế phun thuốc, chờ thời tiết ổn.';
+
+  // Alert advice
+  const hotDays = dayEntries.filter(d => d.tempMax >= 33).map(d => d.dayName);
+  advAlert = hotDays.length > 0 && rainDays.length >= 2
+    ? `Nắng nóng ${hotDays.join(', ')} + mưa lớn ${rainDays.length} ngày — kiểm tra hệ thống thoát nước TRƯỚC ${rainDays[0]?.dayName}.`
+    : hotDays.length > 0
+    ? `Nắng nóng ${hotDays.join(', ')} — che phủ cây con, tưới gốc buổi sáng.`
+    : rainDays.length >= 3
+    ? `Mưa kéo dài ${rainDays.length} ngày — theo dõi độ ẩm đất tránh ngập úng.`
+    : 'Thời tiết thuận lợi — không có cảnh báo đặc biệt trong tuần.';
+
+  return {
+    water: { icon:'💧', label:'Tưới nước', val:water, sub:waterSub, color:waterColor, bg:waterBg },
+    fert:  { icon:'🌿', label:'Bón phân',  val:fert,  sub:fertSub,  color:fertColor,  bg:fertBg  },
+    spray: { icon:'🚿', label:'Phun thuốc',val:spray, sub:spraySub, color:sprayColor, bg:sprayBg },
+    warn:  { icon:'⚠️', label:'Cảnh báo', val:warn,  sub:warnSub,  color:warnColor,  bg:warnBg  },
+    advWater, advFert, advSpray, advAlert
+  };
+}
+
+// ── Render toàn bộ trang thời tiết ──
+function renderWeatherPage(rawData, lat, lon, locationName) {
+  const view = document.getElementById('weatherView');
+  if (!view) return;
+
+  // Parse dữ liệu
+  const dailyMap = new Map();
+  rawData.list.forEach(item => {
+    const d = new Date(item.dt * 1000);
+    const key = d.toLocaleDateString('sv-SE');
+    if (!dailyMap.has(key)) dailyMap.set(key, []);
+    dailyMap.get(key).push(item);
+  });
+
+  const dayEntries = Array.from(dailyMap.entries()).slice(0, 7).map(([dateKey, items]) => {
+    const temps   = items.map(i => i.main.temp);
+    const noon    = items.find(i => { const h = new Date(i.dt*1000).getHours(); return h >= 11 && h <= 13; }) || items[0];
+    const maxPop  = Math.max(...items.map(i => i.pop || 0));
+    const totalRain = items.reduce((s, i) => s + (i.rain?.['3h'] || 0), 0);
+    const avgHum  = items.reduce((s, i) => s + i.main.humidity, 0) / items.length;
+    const avgWind = items.reduce((s, i) => s + i.wind.speed, 0) / items.length;
+    const date    = new Date(dateKey);
+    const dayName = date.toLocaleDateString('vi-VN', { weekday:'short' });
+    const dayDate = date.toLocaleDateString('vi-VN', { day:'numeric', month:'numeric' });
+    return {
+      dateKey, items, noon, dayName, dayDate,
+      tempMax: Math.max(...temps),
+      tempMin: Math.min(...temps),
+      humidity: Math.round(avgHum),
+      windSpeed: +avgWind.toFixed(1),
+      windDeg: noon.wind.deg || 0,
+      pop: maxPop,
+      rain: +totalRain.toFixed(1),
+      icon: noon.weather[0].icon,
+      desc: noon.weather[0].description,
+    };
+  });
+
+  if (dayEntries.length === 0) return;
+
+  const today   = dayEntries[0];
+  const advice  = wAgriAdvice(dayEntries);
+  let selectedDay = 0;
+
+  // ── Build HTML ──
+  function buildDayStrip() {
+    return dayEntries.map((d, i) => `
+      <div class="wh-day-card${i === selectedDay ? ' active' : ''}" onclick="wSelectDay(${i})">
+        <div class="wh-day-name">${i === 0 ? 'Hôm nay' : d.dayName}</div>
+        <div class="wh-day-date">${d.dayDate}</div>
+        <div class="wh-day-icon">${wIconEmoji(d.icon)}</div>
+        <div class="wh-day-max">${Math.round(d.tempMax)}°</div>
+        <div class="wh-day-min">${Math.round(d.tempMin)}°</div>
+        <div class="wh-day-rain" style="color:${wRainColor(d.pop)};">
+          🌧 ${Math.round(d.pop * 100)}%
+        </div>
+      </div>`).join('');
+  }
+
+  function buildHourly(dayIdx) {
+    const items = dayEntries[dayIdx]?.items || [];
+    if (items.length === 0) return '<div style="color:#adb5bd;font-size:12px;padding:10px;">Không có dữ liệu giờ</div>';
+    return items.map(item => {
+      const h    = new Date(item.dt * 1000).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
+      const pop  = item.pop || 0;
+      const temp = Math.round(item.main.temp);
+      const isHot = temp >= 33;
+      return `
+        <div class="wh-hour-card" style="${isHot ? 'background:#fff3e0;' : ''}">
+          <div class="wh-hour-time">${h}</div>
+          <div class="wh-hour-icon">${wIconEmoji(item.weather[0].icon)}</div>
+          <div class="wh-hour-temp" style="color:${isHot ? '#dc3545' : '#212529'};">${temp}°</div>
+          <div class="wh-hour-rain" style="color:${wRainColor(pop)};">🌧 ${Math.round(pop*100)}%</div>
+        </div>`;
+    }).join('');
+  }
+  view.removeAttribute('data-loading');   // ← thêm dòng này
+  view.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:10px;padding:10px;">
+
+      <!-- Header -->
+      <div class="wh-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">📍</span>
+          <div>
+            <div class="wh-loc-name" id="wh-loc-name">${locationName || (lat.toFixed(3)+'°N · '+lon.toFixed(3)+'°E')}</div>
+            <div class="wh-loc-sub">${lat.toFixed(4)}°N · ${lon.toFixed(4)}°E</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <select id="stationSelect" class="wh-select" onchange="loadWeatherData()">
+            <option value="all">Tất cả trạm</option>
+          </select>
+          <span style="font-size:11px;color:#adb5bd;">Cập nhật: ${new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}</span>
+        </div>
+      </div>
+
+      <!-- Today big card -->
+      <div class="wh-today">
+        <div>
+          <div style="font-size:11px;opacity:.8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">
+            Hôm nay · ${new Date().toLocaleDateString('vi-VN',{weekday:'long',day:'numeric',month:'numeric'})}
+          </div>
+          <div class="wh-today-temp">${Math.round(today.tempMax)}°</div>
+          <div class="wh-today-desc">${wIconEmoji(today.icon)} ${today.desc}</div>
+          <div class="wh-today-mm">Thấp: ${Math.round(today.tempMin)}° · Cao: ${Math.round(today.tempMax)}°</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px;justify-content:center;">
+          <div class="wh-stat">
+            <span>💧</span>
+            <div><div class="wh-stat-label">Độ ẩm KK</div><div class="wh-stat-val">${today.humidity}%</div></div>
+          </div>
+          <div class="wh-stat">
+            <span>💨</span>
+            <div><div class="wh-stat-label">Gió</div><div class="wh-stat-val">${today.windSpeed} m/s · ${wWindDir(today.windDeg)}</div></div>
+          </div>
+          <div class="wh-stat">
+            <span>🌧️</span>
+            <div><div class="wh-stat-label">Xác suất mưa</div><div class="wh-stat-val">${Math.round(today.pop*100)}%${today.rain > 0 ? ' · '+today.rain+'mm' : ''}</div></div>
+          </div>
+          <div class="wh-stat">
+            <span>🌱</span>
+            <div><div class="wh-stat-label">Lượng mưa</div><div class="wh-stat-val">${today.rain > 0 ? today.rain+' mm' : 'Không mưa'}</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 agri quick indicators -->
+      <div class="wh-agri">
+        ${['water','fert','spray','warn'].map(k => {
+          const a = advice[k];
+          return `<div class="wh-agri-card" style="background:${a.bg};">
+            <span class="wh-agri-icon">${a.icon}</span>
             <div>
-              <i class="fas fa-wind"></i> Gió: ${noonForecast.wind.speed} m/s
+              <div class="wh-agri-label" style="color:${a.color};">${a.label}</div>
+              <div class="wh-agri-val" style="color:${a.color};">${a.val}</div>
+              <div class="wh-agri-sub" style="color:${a.color}cc;">${a.sub}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <!-- 7-day strip -->
+      <div class="wh-days" id="wh-day-strip">${buildDayStrip()}</div>
+
+      <!-- Hourly detail -->
+      <div class="wh-panel">
+        <div class="wh-panel-title" id="wh-hourly-title">🕐 Dự báo theo giờ — Hôm nay</div>
+        <div class="wh-hourly" id="wh-hourly-wrap">${buildHourly(0)}</div>
+      </div>
+
+      <!-- Agri advice 7-day -->
+      <div class="wh-panel">
+        <div class="wh-panel-title">🌾 Khuyến nghị canh tác — 7 ngày tới</div>
+        <div class="wh-advice">
+          <div class="wh-adv-item" style="background:#e8f5e0;">
+            <span class="wh-adv-icon">💧</span>
+            <div>
+              <div class="wh-adv-title" style="color:#2d6a0f;">Tưới nước</div>
+              <div class="wh-adv-body">${advice.advWater}</div>
+            </div>
+          </div>
+          <div class="wh-adv-item" style="background:#e3f2fd;">
+            <span class="wh-adv-icon">🌿</span>
+            <div>
+              <div class="wh-adv-title" style="color:#0d47a1;">Bón phân</div>
+              <div class="wh-adv-body">${advice.advFert}</div>
+            </div>
+          </div>
+          <div class="wh-adv-item" style="background:#f3e5f5;">
+            <span class="wh-adv-icon">🚿</span>
+            <div>
+              <div class="wh-adv-title" style="color:#4a148c;">Phun thuốc</div>
+              <div class="wh-adv-body">${advice.advSpray}</div>
+            </div>
+          </div>
+          <div class="wh-adv-item" style="background:#fff8e1;">
+            <span class="wh-adv-icon">⚠️</span>
+            <div>
+              <div class="wh-adv-title" style="color:#e65100;">Cảnh báo</div>
+              <div class="wh-adv-body">${advice.advAlert}</div>
             </div>
           </div>
         </div>
       </div>
-    `;
-  }
 
-  container.innerHTML = html;
+    </div>
+  `;
+
+  // Gắn lại select trạm
+  initStationSelectFromRealStations();
+
+  // Hàm chọn ngày (gắn vào window để onclick gọi được)
+  window.wSelectDay = function(idx) {
+    selectedDay = idx;
+    // cập nhật strip
+    document.querySelectorAll('.wh-day-card').forEach((el, i) => {
+      el.classList.toggle('active', i === idx);
+    });
+    // cập nhật hourly
+    const d = dayEntries[idx];
+    const titleEl = document.getElementById('wh-hourly-title');
+    const wrapEl  = document.getElementById('wh-hourly-wrap');
+    if (titleEl) titleEl.textContent = `🕐 Dự báo theo giờ — ${idx === 0 ? 'Hôm nay' : d.dayName + ' ' + d.dayDate}`;
+    if (wrapEl)  wrapEl.innerHTML = buildHourly(idx);
+  };
+
+  // Lấy tên địa chỉ thật
+  updateStationAddress(lat, lon);
+}
+
+// ── initStationSelectFromRealStations ──
+function initStationSelectFromRealStations() {
+  const select = document.getElementById('stationSelect');
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = '<option value="all">Tất cả trạm (vị trí trung bình)</option>';
+  stations.forEach((station, idx) => {
+    if (station.location && typeof station.location.lat === 'number') {
+      const opt = document.createElement('option');
+      opt.value = idx;
+      opt.textContent = station.name;
+      select.appendChild(opt);
+    }
+  });
+  if (current) select.value = current;
+  select.onchange = () => loadWeatherData();
+}
+
+// ── initStationSelect (fallback) ──
+function initStationSelect() {
+  initStationSelectFromRealStations();
+}
+
+// ── showWeather ──
+async function showWeather() {
+  if (!requireLoginForStationDetail()) return;
+  if (typeof allChartsRefreshTimer !== 'undefined' && allChartsRefreshTimer) clearInterval(allChartsRefreshTimer);
+  if (typeof refreshTimer !== 'undefined' && refreshTimer) clearInterval(refreshTimer);
+  hideAllViews();
+  const view = document.getElementById('weatherView');
+  if (view) view.setAttribute('data-loading', '');   // ← thêm dòng này
+  if (view) view.style.display = 'block';
+  updateNavActive('weatherView');
+
+
+  // Spinner trong khi chờ
+const _fc = document.getElementById('dailyForecastContainer');
+if (_fc) _fc.innerHTML = `
+  <div class="col-12 d-flex flex-column align-items-center justify-content-center py-5" style="min-height:220px;">
+    <div class="spinner-border text-success mb-3" style="width:3rem;height:3rem;" role="status"></div>
+    <div class="fw-bold text-muted">Đang tải dữ liệu thời tiết...</div>
+    <div class="small text-muted mt-1">Vui lòng chờ trong giây lát</div>
+  </div>`;
+
+
+  await fetchRealDataFromGateway();
+  await loadWeatherData();
+}
+
+// ── loadWeatherData ──
+async function loadWeatherData() {
+  const view = document.getElementById('weatherView');
+  if (!view) return;
+
+  view.innerHTML = `
+    <div style="text-align:center;padding:60px 20px;color:#6c757d;">
+      <i class="fas fa-spinner fa-spin fa-2x"></i>
+      <div style="margin-top:12px;font-size:13px;">Đang tải dữ liệu thời tiết...</div>
+    </div>`;
+
+  try {
+    const select = document.getElementById('stationSelect') || { value: 'all' };
+    const selectedValue = select.value || 'all';
+
+    let lat, lon;
+    if (selectedValue === 'all') {
+      const valid = stations.filter(s => s.location && typeof s.location.lat === 'number');
+      if (valid.length === 0) throw new Error('Không có trạm nào có tọa độ');
+      lat = valid.reduce((s, st) => s + st.location.lat, 0) / valid.length;
+      lon = valid.reduce((s, st) => s + st.location.lng, 0) / valid.length;
+    } else {
+      const idx = parseInt(selectedValue, 10);
+      const st  = stations[idx];
+      if (!st || !st.location) throw new Error('Trạm không có tọa độ');
+      lat = st.location.lat;
+      lon = st.location.lng;
+    }
+
+    const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${API_KEY}&lang=vi&cnt=56`;
+    const res  = await fetch(url);
+    if (!res.ok) throw new Error(`OpenWeatherMap HTTP ${res.status}`);
+    const data = await res.json();
+
+    renderWeatherPage(data, lat, lon, null);
+
+  } catch (err) {
+    console.error('loadWeatherData error:', err);
+    if (view) view.innerHTML = `
+      <div style="padding:20px;">
+        <div style="background:#fde8e8;border-radius:10px;padding:16px;color:#b71c1c;font-size:13px;">
+          ⚠️ Không thể tải dữ liệu thời tiết: ${err.message}
+        </div>
+      </div>`;
+  }
+}
+
+// displayForecast giữ lại để không lỗi nếu nơi khác gọi
+function displayForecast(data, days) {
+  renderWeatherPage(data, 0, 0, null);
 }
 
 
@@ -4582,358 +5061,397 @@ setInterval(() => {
 let ndviChart = null;
 let isRealtimeMode = true;
 let ndviInterval = null;
-let ndviDataStore = []; // Lưu trữ dữ liệu real-time
-let isNDVIPageInitialized = false; // Đánh dấu đã khởi tạo chưa
+let ndviDataStore = [];
+let ndviCurrentMode = 'realtime';
 
-
-// ========== CHART INITIALIZATION ==========
-function initNDVIChart() {
-  if (isNDVIPageInitialized) return;
-    const chartDom = document.getElementById('ndviChart');
-    if (!chartDom) return;
-    
-    if (ndviChart) ndviChart.dispose();
-    ndviChart = echarts.init(chartDom);
-    
-    const option = {
-        title: { text: 'Biến thiên NDVI (Real-time)', left: 'center', textStyle: { fontSize: 14 } },
-        tooltip: { trigger: 'axis', backgroundColor: 'rgba(255, 255, 255, 0.9)' },
-        legend: { data: ['Sensor 411', 'Sensor 412', 'Trung bình'], bottom: 0 },
-        grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
-        xAxis: { 
-            type: 'category', 
-            boundaryGap: false, 
-            data: [],
-            axisLabel: { rotate: 30, fontSize: 10 }
-        },
-        yAxis: { 
-            type: 'value', 
-            min: -1.0, max: 1.0,
-            name: 'Giá trị NDVI',
-            splitLine: { lineStyle: { type: 'dashed' } }
-        },
-        series: [
-            {
-                name: 'Sensor 411',
-                type: 'line',
-                smooth: true,
-                symbol: 'circle',
-                symbolSize: 4,
-                lineStyle: { width: 2, color: '#dc3545' },
-                data: []
-            },
-            {
-                name: 'Sensor 412',
-                type: 'line',
-                smooth: true,
-                symbol: 'circle',
-                symbolSize: 4,
-                lineStyle: { width: 2, color: '#0d6efd' },
-                data: []
-            },
-            {
-                name: 'Trung bình',
-                type: 'line',
-                smooth: true,
-                symbol: 'circle',
-                symbolSize: 4,
-                lineStyle: { width: 2, color: '#198754' },
-                data: []
-            }
-        ]
-    };
-    ndviChart.setOption(option);
+// ========== NDVI HELPERS ==========
+function ndviGetHealthInfo(val) {
+  if (val === null || isNaN(val)) return { label: 'Đang phân tích...', color: '#6c757d', bg: '#f8f9fa' };
+  if (val < 0.2) return { label: 'Đất trống / Cây chết', color: '#dc3545', bg: '#fde8e8' };
+  if (val < 0.4) return { label: 'Cây yếu, căng thẳng', color: '#fd7e14', bg: '#fff3e0' };
+  if (val < 0.6) return { label: 'Phát triển trung bình', color: '#5a8c1a', bg: '#f0f7e0' };
+  return { label: 'Phát triển tốt ✓', color: '#2d6a0f', bg: '#e8f5e0' };
 }
 
-// ========== UPDATE NDVI PAGE (chỉ lưu dữ liệu, không vẽ lại toàn bộ) ==========
+function ndviGetRecommendations(ndvi, ratio) {
+  const water = ndvi < 0.3
+    ? { text: 'Tưới nước: Cần tưới ngay', sub: 'NDVI thấp — cây đang thiếu nước nghiêm trọng', icon: '💧', bg: '#fde8e8' }
+    : ndvi < 0.5
+    ? { text: 'Tưới nước: Tăng tần suất', sub: 'NDVI trung bình — kiểm tra độ ẩm đất', icon: '💧', bg: '#fff3e0' }
+    : { text: 'Tưới nước: Duy trì hiện tại', sub: 'NDVI tốt — cây hấp thụ nước ổn định', icon: '💧', bg: '#e8f5e0' };
+
+  const fert = ratio < 1.5
+    ? { text: 'Bón phân: Cần bổ sung Nitrogen', sub: 'NIR/RED thấp — lá cây thiếu diệp lục', icon: '🌿', bg: '#fde8e8' }
+    : ratio < 2.2
+    ? { text: 'Bón phân: Bổ sung nhẹ Nitrogen', sub: `NIR/RED = ${ratio.toFixed(2)} — có thể cải thiện thêm`, icon: '🌿', bg: '#fff3e0' }
+    : { text: 'Bón phân: Mức hiện tại phù hợp', sub: `NIR/RED = ${ratio.toFixed(2)} — diệp lục tốt`, icon: '🌿', bg: '#e8f5e0' };
+
+  return { water, fert };
+}
+
+function ndviUpdateRecommendations(ndvi411, nir411, red411, ndvi412, nir412, red412) {
+  const avgNdvi = (ndvi411 + ndvi412) / 2;
+  const avgRatio = ((nir411 / (red411 || 0.001)) + (nir412 / (red412 || 0.001))) / 2;
+  const diff = Math.abs(ndvi411 - ndvi412);
+
+  const { water, fert } = ndviGetRecommendations(avgNdvi, avgRatio);
+
+  const wEl = document.getElementById('rec-water');
+  const wSub = document.getElementById('rec-water-sub');
+  const fEl = document.getElementById('rec-fert');
+  const fSub = document.getElementById('rec-fert-sub');
+  const aEl = document.getElementById('rec-alert');
+  const aSub = document.getElementById('rec-alert-sub');
+
+  if (wEl) { wEl.textContent = water.text; wEl.parentElement.previousElementSibling.style.background = water.bg; }
+  if (wSub) wSub.textContent = water.sub;
+  if (fEl) { fEl.textContent = fert.text; fEl.parentElement.previousElementSibling.style.background = fert.bg; }
+  if (fSub) fSub.textContent = fert.sub;
+  if (aEl) aEl.textContent = `Chênh lệch sensor: ${diff.toFixed(4)}`;
+  if (aSub) aSub.textContent = diff < 0.02 ? 'Hai sensor đồng nhất — không có vùng bất thường' : diff < 0.05 ? 'Chênh lệch nhỏ — kiểm tra góc đo' : '⚠️ Chênh lệch lớn — kiểm tra lắp đặt sensor';
+}
+
+function ndviUpdateSpectrum(r411, n411, r412, n412) {
+  const maxVal = Math.max(r411, n411, r412, n412, 0.001);
+  const pct = v => Math.min(99, Math.round((v / maxVal) * 95));
+
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val.toFixed(4) + ' W·m⁻²·nm⁻¹'; };
+  const bar = (id, pctVal) => { const el = document.getElementById(id); if (el) el.style.width = pctVal + '%'; };
+
+  set('spec-red411', r411); bar('bar-red411', pct(r411));
+  set('spec-red412', r412); bar('bar-red412', pct(r412));
+  set('spec-nir411', n411); bar('bar-nir411', pct(n411));
+  set('spec-nir412', n412); bar('bar-nir412', pct(n412));
+
+  const ratio = ((n411 / (r411 || 0.001)) + (n412 / (r412 || 0.001))) / 2;
+  const noteEl = document.getElementById('ndvi-ratio-note');
+  if (noteEl) {
+    const healthNote = ratio > 2 ? 'Cây hấp thụ mạnh ánh sáng đỏ, phản chiếu cao hồng ngoại → sức khỏe tốt'
+      : ratio > 1.5 ? 'Tỉ lệ NIR/RED trung bình — cây đang phát triển'
+      : 'NIR/RED thấp — cây có thể thiếu diệp lục';
+    noteEl.textContent = `NIR/RED ratio: ${ratio.toFixed(2)} · ${healthNote}`;
+  }
+}
+
+function ndviUpdateGauge(val) {
+  // val từ -1 đến 1, map thành 0-100%
+  const pct = Math.max(0, Math.min(100, ((val + 1) / 2) * 100));
+  const needle1 = document.getElementById('ndvi-gauge-needle');
+  const needle2 = document.getElementById('ndvi-scale-needle');
+  if (needle1) needle1.style.left = pct + '%';
+  if (needle2) needle2.style.left = pct + '%';
+}
+
+// ========== UPDATE NDVI PAGE ==========
 function updateNDVIPage(data) {
-    if (!data || !data.S2_411) return;
+  if (!data || !data.S2_411) return;
 
-    // Tính toán NDVI
-    const n411 = (data.S2_411.nir - data.S2_411.red) / (data.S2_411.nir + data.S2_411.red);
-    const n412 = (data.S2_412.nir - data.S2_412.red) / (data.S2_412.nir + data.S2_412.red);
-    const avg = (n411 + n412) / 2;
+  const r411 = data.S2_411.red, n411 = data.S2_411.nir;
+  const r412 = data.S2_412.red, n412 = data.S2_412.nir;
+  const nd411 = (n411 - r411) / (n411 + r411 || 0.001);
+  const nd412 = (n412 - r412) / (n412 + r412 || 0.001);
+  const avg = (nd411 + nd412) / 2;
 
-    // Cập nhật card hiển thị
-    const elements = {
-        'detail-red-411': data.S2_411.red.toFixed(4),
-        'detail-nir-411': data.S2_411.nir.toFixed(4),
-        'detail-ndvi-411': n411.toFixed(6),
-        'detail-red-412': data.S2_412.red.toFixed(4),
-        'detail-nir-412': data.S2_412.nir.toFixed(4),
-        'detail-ndvi-412': n412.toFixed(4),
-        'avg-ndvi': avg.toFixed(4)
-    };
-    
-    for (const [id, value] of Object.entries(elements)) {
-        const el = document.getElementById(id);
-        if (el) el.textContent = value;
+  // Cards
+  const setEl = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+  setEl('detail-red-411', r411.toFixed(4)); setEl('detail-nir-411', n411.toFixed(4)); setEl('detail-ndvi-411', nd411.toFixed(4));
+  setEl('detail-red-412', r412.toFixed(4)); setEl('detail-nir-412', n412.toFixed(4)); setEl('detail-ndvi-412', nd412.toFixed(4));
+  setEl('ndvi-tilt-411', `Góc đo: ${(data.S2_411.angle || 0).toFixed(1)}°`);
+  setEl('ndvi-tilt-412', `Góc đo: ${(data.S2_412.angle || 0).toFixed(1)}°`);
+  setEl('avg-ndvi', avg.toFixed(4));
+
+  // Gauge + badge
+  ndviUpdateGauge(avg);
+  const health = ndviGetHealthInfo(avg);
+  const badge = document.getElementById('ndvi-health-badge');
+  if (badge) { badge.textContent = health.label; badge.style.color = health.color; badge.style.background = health.bg; }
+
+  // Timestamp
+  const now = new Date();
+  setEl('ndvi-update-time', now.toLocaleTimeString('vi-VN'));
+  setEl('ndvi-update-date', now.toLocaleDateString('vi-VN'));
+
+  // Spectrum
+  ndviUpdateSpectrum(r411, n411, r412, n412);
+
+  // Recommendations
+  ndviUpdateRecommendations(nd411, n411, r411, nd412, n412, r412);
+
+  // Realtime store
+  if (isRealtimeMode) {
+    const ts = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    ndviDataStore.push({ timestamp: ts, n411: nd411, n412: nd412, avg });
+    if (ndviDataStore.length > 60) ndviDataStore.shift();
+    if (ndviChart && document.getElementById('ndviView')?.style.display !== 'none') {
+      ndviUpdateChartRealtime();
     }
+  }
 
-    // FIX #4: Hiển thị badge pin Node NDVI (field mới từ /api/ndvi)
-    if (data.node_battery !== undefined) {
-        let badgeId = 'ndvi-node-battery-badge';
-        let badge = document.getElementById(badgeId);
-        if (!badge) {
-            // Tạo badge một lần, gắn vào card NDVI trung bình
-            const card = document.querySelector('#ndviView .card.bg-primary');
-            if (card) {
-                badge = document.createElement('div');
-                badge.id = badgeId;
-                badge.className = 'small mt-2';
-                card.appendChild(badge);
-            }
-        }
-        if (badge) {
-            const bat    = data.node_battery.toFixed(0);
-            const volt   = (data.node_voltage || 0).toFixed(2);
-            const chg    = data.node_charge_mode;
-            const chgTxt = chg === 2 ? '✅ Pin đầy' : chg === 1 ? '⚡ Đang sạc' : '🔋 Dùng pin';
-            const color  = bat < 20 ? '#ff4d4d' : bat < 50 ? '#ffc107' : '#a8f0c6';
-            badge.innerHTML = `<span style="color:${color}">🔋 Node NDVI: ${bat}% (${volt}V) — ${chgTxt}</span>`;
-        }
+  // Badge pin node NDVI (nếu có)
+  if (data.node_battery !== undefined) {
+    let badgeId = 'ndvi-node-battery-badge';
+    let badge2 = document.getElementById(badgeId);
+    if (!badge2) {
+      const card = document.querySelector('#ndviView .ndvi-mcard:first-child');
+      if (card) { badge2 = document.createElement('div'); badge2.id = badgeId; badge2.style.cssText = 'font-size:11px;padding-left:8px;margin-top:4px;'; card.appendChild(badge2); }
     }
-
-    // Lưu vào data store cho real-time (chỉ lưu nếu đang ở chế độ real-time)
-    if (isRealtimeMode) {
-        const timestamp = new Date().toLocaleTimeString();
-        ndviDataStore.push({ timestamp, n411, n412, avg });
-        
-        // Giữ tối đa 50 điểm
-        if (ndviDataStore.length > 50) ndviDataStore.shift();
-        
-        // Cập nhật biểu đồ nếu trang NDVI đang hiển thị
-        if (ndviChart && document.getElementById('ndviView')?.style.display === 'block') {
-            updateNDVIChartFromStore();
-        }
+    if (badge2) {
+      const bat = data.node_battery.toFixed(0), volt = (data.node_voltage || 0).toFixed(2);
+      const chgTxt = data.node_charge_mode === 2 ? '✅ Pin đầy' : data.node_charge_mode === 1 ? '⚡ Đang sạc' : '🔋 Dùng pin';
+      const col = bat < 20 ? '#dc3545' : bat < 50 ? '#fd7e14' : '#2d6a0f';
+      badge2.innerHTML = `<span style="color:${col}">🔋 Node: ${bat}% (${volt}V) — ${chgTxt}</span>`;
     }
+  }
 }
 
-// ========== CẬP NHẬT BIỂU ĐỒ TỪ DATA STORE ==========
-function updateNDVIChartFromStore() {
-    if (!ndviChart || ndviDataStore.length === 0) return;
-    
-    const timestamps = ndviDataStore.map(d => d.timestamp);
-    const ndvi411 = ndviDataStore.map(d => d.n411);
-    const ndvi412 = ndviDataStore.map(d => d.n412);
-    const ndviAvg = ndviDataStore.map(d => d.avg);
-    
-    ndviChart.setOption({
-        xAxis: { data: timestamps },
-        series: [
-            { data: ndvi411 },
-            { data: ndvi412 },
-            { data: ndviAvg }
-        ]
-    });
+// ========== CHART: realtime ==========
+function ndviInitChart() {
+  const dom = document.getElementById('ndviChart');
+  if (!dom) return;
+  if (ndviChart) { ndviChart.dispose(); ndviChart = null; }
+  ndviChart = echarts.init(dom);
+  ndviChart.setOption({
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['S2-411', 'S2-412', 'Trung bình'], bottom: 0, textStyle: { fontSize: 11 } },
+    grid: { top: 20, bottom: 40, left: 45, right: 10, containLabel: false },
+    xAxis: { type: 'category', boundaryGap: false, data: [], axisLabel: { fontSize: 10, rotate: 30 } },
+    yAxis: {
+      type: 'value', min: -0.2, max: 1.0,
+      axisLabel: { fontSize: 10 },
+      splitArea: {
+        show: true,
+        areaStyle: { color: ['rgba(220,53,69,0.07)', 'rgba(253,126,20,0.07)', 'rgba(139,195,74,0.07)', 'rgba(45,106,15,0.07)'] }
+      }
+    },
+    series: [
+      { name: 'S2-411', type: 'line', smooth: true, data: [], lineStyle: { color: '#dc3545', width: 2 }, itemStyle: { color: '#dc3545' }, showSymbol: false },
+      { name: 'S2-412', type: 'line', smooth: true, data: [], lineStyle: { color: '#0d6efd', width: 2 }, itemStyle: { color: '#0d6efd' }, showSymbol: false },
+      { name: 'Trung bình', type: 'line', smooth: true, data: [], lineStyle: { color: '#2d6a0f', width: 1.5, type: 'dashed' }, itemStyle: { color: '#2d6a0f' }, showSymbol: false }
+    ]
+  });
+  window.addEventListener('resize', () => { if (ndviChart) ndviChart.resize(); });
 }
 
-// ========== XÓA DỮ LIỆU REAL-TIME ==========
-function clearRealtimeData() {
-    ndviDataStore = [];
-    if (ndviChart) {
-        ndviChart.setOption({
-            xAxis: { data: [] },
-            series: [{ data: [] }, { data: [] }, { data: [] }]
-        });
+function ndviUpdateChartRealtime() {
+  if (!ndviChart || ndviDataStore.length === 0) return;
+  ndviChart.setOption({
+    xAxis: { data: ndviDataStore.map(d => d.timestamp) },
+    series: [
+      { data: ndviDataStore.map(d => +d.n411.toFixed(4)) },
+      { data: ndviDataStore.map(d => +d.n412.toFixed(4)) },
+      { data: ndviDataStore.map(d => +d.avg.toFixed(4)) }
+    ]
+  });
+  // trend
+  if (ndviDataStore.length > 1) {
+    const last = ndviDataStore[ndviDataStore.length - 1].avg;
+    const prev = ndviDataStore[ndviDataStore.length - 2].avg;
+    const trend = last > prev ? '↑ Tăng' : last < prev ? '↓ Giảm' : '→ Ổn định';
+    const col = last > prev ? '#2d6a0f' : last < prev ? '#dc3545' : '#6c757d';
+    const el = document.getElementById('ndvi-trend-text');
+    if (el) el.innerHTML = `Xu hướng: <span style="color:${col};font-weight:500;">${trend}</span>`;
+  }
+}
+
+// ========== CHART: lịch sử từ SD ==========
+async function ndviLoadHistoryChart(range) {
+  const loading = document.getElementById('ndvi-loading');
+  const chartDom = document.getElementById('ndviChart');
+  if (loading) loading.style.display = 'block';
+  if (chartDom) chartDom.style.visibility = 'hidden';
+
+  try {
+    const history = await getNDVIHistoryFromSD(range);
+    if (loading) loading.style.display = 'none';
+    if (chartDom) chartDom.style.visibility = 'visible';
+
+    if (!history || !history.timestamps || history.timestamps.length === 0) {
+      if (ndviChart) ndviChart.setOption({ xAxis: { data: [] }, series: [{ data: [] }, { data: [] }, { data: [] }] });
+      showToast('Không có dữ liệu NDVI trong khoảng thời gian này', 'warning');
+      return;
     }
-}
 
-// ========== LẤY LỊCH SỬ NDVI TỪ SD ==========
-async function getNDVIHistoryFromSD(range) {
-    const now = new Date();
-    let startDate;
-    
+    // Với range tuần/tháng: group theo ngày, tính trung bình
+    let labels, d411, d412, dAvg;
     if (range === 'today') {
-        startDate = now.toISOString().slice(0, 10);
-    } else if (range === 'week') {
-        const start = new Date(now);
-        start.setDate(now.getDate() - 7);
-        startDate = start.toISOString().slice(0, 10);
+      labels = history.timestamps;
+      d411 = history.ndvi411.map(v => +v.toFixed(4));
+      d412 = history.ndvi412.map(v => +v.toFixed(4));
+      dAvg = history.ndviTB.map(v => +v.toFixed(4));
     } else {
-        const start = new Date(now);
-        start.setDate(now.getDate() - 30);
-        startDate = start.toISOString().slice(0, 10);
+      // Group theo ngày
+      const dayMap = new Map();
+      history.timestamps.forEach((ts, i) => {
+        let dateKey;
+        if (ts.includes('/')) {
+          const parts = ts.split(' ')[0].split('/');
+          if (parts.length === 3) {
+            const [m, d, y] = parts;
+            dateKey = `${d.padStart(2,'0')}/${m.padStart(2,'0')}`;
+          } else dateKey = ts.split(' ')[0];
+        } else dateKey = ts.slice(5, 10).replace('-', '/');
+
+        if (!dayMap.has(dateKey)) dayMap.set(dateKey, { n411: [], n412: [], avg: [] });
+        const entry = dayMap.get(dateKey);
+        entry.n411.push(history.ndvi411[i]);
+        entry.n412.push(history.ndvi412[i]);
+        entry.avg.push(history.ndviTB[i]);
+      });
+      const days = Array.from(dayMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+      labels = days.map(d => d[0]);
+      const avg1d = arr => +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(4);
+      d411 = days.map(d => avg1d(d[1].n411));
+      d412 = days.map(d => avg1d(d[1].n412));
+      dAvg = days.map(d => avg1d(d[1].avg));
     }
-    
-    const allFiles = await fetchSDCardFiles() || [];
-    // Lọc file từ startDate đến hiện tại
-    const filesInRange = allFiles.filter(fname => {
-        const datePart = fname.replace('.csv', '');
-        return datePart >= startDate;
-    });
-    
-    if (filesInRange.length === 0) {
-        return { timestamps: [], ndvi411: [], ndvi412: [], ndviTB: [] };
+
+    if (ndviChart) {
+      ndviChart.setOption({
+        xAxis: { data: labels },
+        series: [{ data: d411 }, { data: d412 }, { data: dAvg }]
+      });
     }
-    
-    let records = [];
-    
-    for (const fname of filesInRange) {
-        try {
-            const csvText = await fetchCSVContent(fname);
-            const rows = parseCSV(csvText);
-            
-            for (const row of rows) {
-                const timestamp = row['Timestamp'];
-                if (!timestamp) continue;
-                
-                // Đọc dữ liệu từ CSV (cập nhật theo format ghi trong logDataToSD)
-                const red_up = parseFloat(row['RED_UP']);
-                const nir_up = parseFloat(row['NIR_UP']);
-                const red_down = parseFloat(row['RED_DOWN']);
-                const nir_down = parseFloat(row['NIR_DOWN']);
-                const ndvi_col = parseFloat(row['NDVI']);
-                
-                if (isNaN(red_up) || isNaN(nir_up) || isNaN(red_down) || isNaN(nir_down)) continue;
-                
-                // Tính NDVI
-                const ndvi411 = (nir_up - red_up) / (nir_up + red_up);
-                const ndvi412 = (nir_down - red_down) / (nir_down + red_down);
-                const ndviTB = !isNaN(ndvi_col) ? ndvi_col : (ndvi411 + ndvi412) / 2;
-                
-                records.push({
-                    timestamp: timestamp,
-                    ndvi411: ndvi411,
-                    ndvi412: ndvi412,
-                    ndviTB: ndviTB
-                });
-            }
-        } catch (err) {
-            console.warn(`Lỗi đọc file ${fname}:`, err);
-        }
+
+    // Trend
+    if (dAvg.length > 1) {
+      const last = dAvg[dAvg.length - 1], prev = dAvg[dAvg.length - 2];
+      const trend = last > prev ? '↑ Tăng' : last < prev ? '↓ Giảm' : '→ Ổn định';
+      const col = last > prev ? '#2d6a0f' : last < prev ? '#dc3545' : '#6c757d';
+      const el = document.getElementById('ndvi-trend-text');
+      if (el) el.innerHTML = `Xu hướng: <span style="color:${col};font-weight:500;">${trend}</span>`;
     }
-    
-    // Sắp xếp theo thời gian tăng dần
-    records.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    
-    return {
-        timestamps: records.map(r => r.timestamp),
-        ndvi411: records.map(r => r.ndvi411),
-        ndvi412: records.map(r => r.ndvi412),
-        ndviTB: records.map(r => r.ndviTB)
-    };
+
+  } catch (err) {
+    if (loading) loading.style.display = 'none';
+    if (chartDom) chartDom.style.visibility = 'visible';
+    console.error('Lỗi tải NDVI lịch sử:', err);
+    showToast('Lỗi tải dữ liệu lịch sử NDVI', 'error');
+  }
 }
 
-// ========== HIỂN THỊ TRANG NDVI ==========
+// ========== LỊCH SỬ 7 NGÀY (bảng mini) ==========
+async function ndviLoad7DayHistory() {
+  const el = document.getElementById('ndvi-history-list');
+  const avgEl = document.getElementById('ndvi-week-avg');
+  if (!el) return;
+
+  try {
+    const history = await getNDVIHistoryFromSD('week');
+    if (!history || history.timestamps.length === 0) {
+      el.innerHTML = '<div style="text-align:center;color:#adb5bd;font-size:12px;padding:10px;">Chưa có dữ liệu</div>';
+      return;
+    }
+
+    // Group theo ngày
+    const dayMap = new Map();
+    history.timestamps.forEach((ts, i) => {
+      let dateKey;
+      if (ts.includes('/')) {
+        const parts = ts.split(' ')[0].split('/');
+        if (parts.length === 3) {
+          const [m, d, y] = parts;
+          dateKey = `${d.padStart(2,'0')}/${m.padStart(2,'0')}`;
+        } else dateKey = ts.split(' ')[0];
+      } else {
+        const raw = ts.slice(0, 10);
+        const [y, m, d] = raw.split('-');
+        dateKey = `${d}/${m}`;
+      }
+      if (!dayMap.has(dateKey)) dayMap.set(dateKey, []);
+      dayMap.get(dateKey).push(history.ndviTB[i]);
+    });
+
+    const days = Array.from(dayMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-7)
+      .reverse();
+
+    let html = '';
+    const allAvgs = days.map(d => d[1].reduce((a, b) => a + b, 0) / d[1].length);
+
+    days.forEach(([date, vals], idx) => {
+      const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+      const prevAvg = idx < days.length - 1 ? (days[idx + 1][1].reduce((a, b) => a + b, 0) / days[idx + 1][1].length) : avg;
+      const trend = avg > prevAvg + 0.005 ? '<span style="color:#2d6a0f;">↑</span>' : avg < prevAvg - 0.005 ? '<span style="color:#dc3545;">↓</span>' : '<span style="color:#6c757d;">→</span>';
+      const health = ndviGetHealthInfo(avg);
+      html += `<div class="ndvi-hist-row">
+        <span style="color:#6c757d;">${date}</span>
+        <span style="font-weight:500;color:${health.color};">${avg.toFixed(4)} ${trend}</span>
+      </div>`;
+    });
+
+    el.innerHTML = html;
+
+    const weekAvg = allAvgs.reduce((a, b) => a + b, 0) / allAvgs.length;
+    if (avgEl) { avgEl.textContent = weekAvg.toFixed(4); avgEl.style.color = ndviGetHealthInfo(weekAvg).color; }
+
+  } catch (err) {
+    el.innerHTML = '<div style="text-align:center;color:#adb5bd;font-size:12px;padding:10px;">Lỗi tải dữ liệu</div>';
+    console.error('ndviLoad7DayHistory error:', err);
+  }
+}
+
+// ========== SWITCH MODE ==========
+function ndviSwitchMode(mode) {
+  ndviCurrentMode = mode;
+  const btns = ['realtime', 'today', 'week', 'month'];
+  btns.forEach(b => {
+    const el = document.getElementById('ndviBtn' + b.charAt(0).toUpperCase() + b.slice(1));
+    if (el) el.classList.toggle('active', b === mode);
+  });
+
+  const modeBadge = document.getElementById('ndvi-mode-badge');
+  const labels = { realtime: '● Real-time', today: '📅 Hôm nay', week: '📆 Tuần này', month: '🗓️ Tháng này' };
+  if (modeBadge) modeBadge.textContent = labels[mode] || mode;
+
+  if (mode === 'realtime') {
+    isRealtimeMode = true;
+    if (ndviInterval) { clearInterval(ndviInterval); ndviInterval = null; }
+    if (ndviDataStore.length > 0) {
+      ndviUpdateChartRealtime();
+    } else {
+      if (ndviChart) ndviChart.setOption({ xAxis: { data: [] }, series: [{ data: [] }, { data: [] }, { data: [] }] });
+    }
+    if (lastNDVIData) updateNDVIPage(lastNDVIData);
+    ndviInterval = setInterval(async () => { await fetchNDVIFromGateway(); }, 30000);
+  } else {
+    isRealtimeMode = false;
+    if (ndviInterval) { clearInterval(ndviInterval); ndviInterval = null; }
+    ndviLoadHistoryChart(mode);
+  }
+}
+
+// ========== SHOW NDVI PAGE ==========
 async function showNDVI() {
-    if (!requireLoginForStationDetail()) return;
-    
-    // Dừng các timer cũ
-    if (ndviInterval) {
-        clearInterval(ndviInterval);
-        ndviInterval = null;
-    }
-    
-    hideAllViews();
-    const ndviPage = document.getElementById('ndviView');
-    if (ndviPage) ndviPage.style.display = 'block';
-    else return;
-    
-    // Khởi tạo biểu đồ
-    initNDVIChart();
-    
-    // Gắn sự kiện cho các nút
-    const rangeSelect = document.getElementById('ndviRange');
-    const refreshBtn = document.getElementById('refreshNDVI');
-    const realtimeBtn = document.getElementById('realTimeNDVI');
-    
-    // Hàm tải lịch sử
-    const loadHistory = async () => {
-        const range = rangeSelect.value;
-        showLoadingOverlay(true);
-        
-        try {
-            const history = await getNDVIHistoryFromSD(range);
-            showLoadingOverlay(false);
-            
-            if (history && history.timestamps && history.timestamps.length > 0) {
-                // Chuyển sang chế độ lịch sử
-                isRealtimeMode = false;
-                if (ndviInterval) {
-                    clearInterval(ndviInterval);
-                    ndviInterval = null;
-                }
-                
-                // Cập nhật tiêu đề
-                let titleText = '';
-                if (range === 'today') titleText = 'Biến thiên NDVI (Hôm nay - Lịch sử)';
-                else if (range === 'week') titleText = 'Biến thiên NDVI (Tuần này - Lịch sử)';
-                else titleText = 'Biến thiên NDVI (Tháng này - Lịch sử)';
-                
-                // Cập nhật biểu đồ với dữ liệu lịch sử
-                ndviChart.setOption({
-                    title: { text: titleText },
-                    xAxis: { data: history.timestamps },
-                    series: [
-                        { data: history.ndvi411 },
-                        { data: history.ndvi412 },
-                        { data: history.ndviTB }
-                    ]
-                });
-            } else {
-                showToast('Không có dữ liệu NDVI trong khoảng thời gian này', 'warning');
-            }
-        } catch (err) {
-            showLoadingOverlay(false);
-            console.error('Lỗi tải lịch sử NDVI:', err);
-            showToast('Lỗi tải dữ liệu lịch sử', 'error');
-        }
-    };
-    
-    // Hàm bắt đầu real-time
-    const startRealtime = () => {
-        isRealtimeMode = true;
-        
-        // Dừng interval cũ nếu có
-        if (ndviInterval) {
-            clearInterval(ndviInterval);
-            ndviInterval = null;
-        }
-        
-        // Không xóa data store cũ, giữ lại dữ liệu đã có
-        if (ndviDataStore.length > 0) {
-            updateNDVIChartFromStore();
-        } else {
-            // Nếu chưa có dữ liệu, xóa biểu đồ
-            ndviChart.setOption({
-                title: { text: 'Biến thiên NDVI (Real-time)' },
-                xAxis: { data: [] },
-                series: [{ data: [] }, { data: [] }, { data: [] }]
-            });
-        }
-        
-        // Lấy dữ liệu hiện tại nếu có
-        if (lastNDVIData) updateNDVIPage(lastNDVIData);
-        
-        // Bắt đầu interval mới
-        ndviInterval = setInterval(async () => {
-            await fetchNDVIFromGateway();
-        }, 30000); // 30 giây
-    };
-    
-    // Gán sự kiện
-    if (refreshBtn) {
-        refreshBtn.onclick = () => {
-            if (ndviInterval) {
-                clearInterval(ndviInterval);
-                ndviInterval = null;
-            }
-            loadHistory();
-        };
-    }
-    
-    if (realtimeBtn) {
-        realtimeBtn.onclick = startRealtime;
-    }
-    
-    // Nếu đã từng ở chế độ real-time trước đó, khôi phục
-    if (isRealtimeMode && ndviDataStore.length > 0) {
-        updateNDVIChartFromStore();
-    }
-    
-    // Bắt đầu real-time mặc định
-    startRealtime();
+  if (!requireLoginForStationDetail()) return;
+  if (ndviInterval) { clearInterval(ndviInterval); ndviInterval = null; }
+  if (allChartsRefreshTimer) clearInterval(allChartsRefreshTimer);
+
+  hideAllViews();
+  const ndviPage = document.getElementById('ndviView');
+  if (!ndviPage) return;
+  ndviPage.style.display = 'block';
+
+  // Khởi tạo chart
+  setTimeout(() => {
+    ndviInitChart();
+    // Vào real-time mặc định
+    ndviSwitchMode('realtime');
+    // Load lịch sử 7 ngày bảng mini
+    ndviLoad7DayHistory();
+    // Nếu có data sẵn thì render luôn
+    if (lastNDVIData) updateNDVIPage(lastNDVIData);
+  }, 150);
+
+  updateNavActive('ndviView');
+}
+
+// ========== CÁC HÀM GIỮ TƯƠNG THÍCH NGƯỢC ==========
+function initNDVIChart() { ndviInitChart(); }
+function updateNDVIChartFromStore() { ndviUpdateChartRealtime(); }
+function clearRealtimeData() {
+  ndviDataStore = [];
+  if (ndviChart) ndviChart.setOption({ xAxis: { data: [] }, series: [{ data: [] }, { data: [] }, { data: [] }] });
 }
 
 // ==================== CẤU HÌNH WIFI ====================
@@ -5184,3 +5702,1498 @@ setInterval(() => {
 document.addEventListener('DOMContentLoaded', () => {
   fetchWifiInfo();
 });
+function getAgriAdvice(tempMax, tempMin, avgHumidity, maxWind, totalRain) {
+  const tips = [];
+  if (totalRain >= 10) tips.push({ icon: '🌧️', text: 'Mưa đủ — không cần tưới', color: '#0d6efd' });
+  else if (totalRain > 0 && totalRain < 10) tips.push({ icon: '🌦️', text: 'Mưa nhẹ — tưới bổ sung nếu đất khô', color: '#6c757d' });
+  else if (avgHumidity < 50) tips.push({ icon: '💧', text: 'Khô — tưới sáng sớm hoặc chiều mát', color: '#fd7e14' });
+  else tips.push({ icon: '💧', text: 'Độ ẩm ổn — theo dõi ẩm độ đất', color: '#198754' });
+  if (totalRain > 20) tips.push({ icon: '🚫', text: 'Mưa to — không bón phân (dễ rửa trôi)', color: '#dc3545' });
+  else if (tempMax >= 25 && tempMax <= 33 && totalRain < 5) tips.push({ icon: '✅', text: 'Thích hợp bón phân hôm nay', color: '#198754' });
+  else if (tempMax > 35) tips.push({ icon: '⚠️', text: 'Nắng gắt — bón phân sáng sớm hoặc chiều', color: '#fd7e14' });
+  if (maxWind > 5) tips.push({ icon: '💨', text: 'Gió > 5m/s — không phun thuốc/phân lá', color: '#dc3545' });
+  else if (totalRain > 5) tips.push({ icon: '🌂', text: 'Có mưa — hoãn phun thuốc', color: '#fd7e14' });
+  else if (maxWind <= 3 && totalRain < 2) tips.push({ icon: '✅', text: 'Thích hợp phun thuốc/phân lá', color: '#198754' });
+  if (tempMax > 38) tips.push({ icon: '🌡️', text: 'Nắng cực đoan — phủ gốc, tưới 2 lần/ngày', color: '#dc3545' });
+  else if (tempMin < 18) tips.push({ icon: '🥶', text: 'Đêm lạnh — che phủ cây con nếu cần', color: '#0dcaf0' });
+  return tips;
+}
+
+// ================================
+// AI CHAT
+// ================================
+function showAIChat() {
+  if (!requireLoginForStationDetail()) return;
+  if (typeof allChartsRefreshTimer !== 'undefined' && allChartsRefreshTimer) clearInterval(allChartsRefreshTimer);
+  if (typeof refreshTimer !== 'undefined' && refreshTimer) clearInterval(refreshTimer);
+  hideAllViews();
+  const view = document.getElementById('aiChatView');
+  if (view) {
+    view.style.display = 'flex';
+    document.getElementById('aiChatInput')?.focus();
+  }
+}
+
+function clearAIChat() {
+  if (typeof aiChatHistory !== 'undefined') aiChatHistory = [];
+  const msgs = document.getElementById('aiChatMessages');
+  if (!msgs) return;
+  msgs.innerHTML = `<div class="text-center text-muted py-4">
+    <i class="fas fa-robot fa-2x mb-2 d-block text-success opacity-50"></i>
+    <div class="fw-bold">Chat đã xóa. Hãy đặt câu hỏi mới!</div>
+  </div>`;
+}
+
+function buildSensorContext() {
+  if (typeof stations === 'undefined' || !stations || stations.length === 0) return 'Chua co du lieu.';
+  let ctx = '=== DU LIEU CAM BIEN ===\n';
+  stations.slice(0,6).forEach(s => {
+    const d = s.data;
+    if (!d || d.length < 8) return;
+    const ok = d[0]!==0||d[1]!==0||d[2]!==0||d[3]!==0;
+    ctx += `[${s.name}]: `;
+    ctx += ok ? `pH=${d[0]}, VWC=${d[1]}%, EC=${d[2]}dS/m, T=${d[3]}C, Pin=${parseFloat(d[7]).toFixed(0)}%\n` : '[Chua co tin hieu]\n';
+  });
+  if (typeof lastNDVIData !== 'undefined' && lastNDVIData && lastNDVIData.valid)
+    ctx += `NDVI=${lastNDVIData.ndvi.toFixed(4)}\n`;
+  return ctx;
+}
+
+function appendAIMsg(role, text) {
+  const msgs = document.getElementById('aiChatMessages');
+  if (!msgs) return;
+  msgs.querySelector('.text-center.text-muted')?.remove();
+  const isUser = role === 'user';
+  const div = document.createElement('div');
+  div.className = 'd-flex mb-2 ' + (isUser ? 'justify-content-end' : 'justify-content-start');
+  div.innerHTML = `<div style="max-width:85%;padding:10px 14px;font-size:0.88rem;line-height:1.6;white-space:pre-wrap;
+    ${isUser ? 'background:#0d6efd;color:white;border-radius:18px 18px 4px 18px;'
+             : 'background:white;color:#212529;border-radius:18px 18px 18px 4px;border:1px solid #e2e8f0;'}"
+  >${isUser ? '' : '<i class="fas fa-robot text-success me-1"></i>'}${text}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+let aiChatHistory = [];
+
+async function sendAIMessage(question) {
+  const input = document.getElementById('aiChatInput');
+  const btn = document.getElementById('aiSendBtn');
+  const text = question || (input && input.value.trim());
+  if (!text) return;
+  if (input) input.value = '';
+  if (btn) btn.disabled = true;
+  appendAIMsg('user', text);
+  const msgs = document.getElementById('aiChatMessages');
+  const typing = document.createElement('div');
+  typing.id = 'aiTyping';
+  typing.className = 'd-flex justify-content-start mb-2';
+  typing.innerHTML = `<div style="background:white;border:1px solid #e2e8f0;border-radius:18px;padding:10px 16px;color:#6c757d;font-size:0.85rem;"><i class="fas fa-robot text-success me-1"></i> Đang phân tích...</div>`;
+  if (msgs) { msgs.appendChild(typing); msgs.scrollTop = msgs.scrollHeight; }
+  aiChatHistory.push({ role: 'user', content: buildSensorContext() + '\n\nCau hoi: ' + text });
+  if (aiChatHistory.length > 20) aiChatHistory = aiChatHistory.slice(-20);
+  try {
+    const res = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ system: 'Ban la chuyen gia nong nghiep AI MIA. Phan tich du lieu cam bien va dua ra khuyen nghi cu the.', messages: aiChatHistory })
+    });
+    document.getElementById('aiTyping')?.remove();
+    if (res.status === 404) {
+      appendAIMsg('assistant', '⚙️ Gateway chua co route /api/ai.\nUpload.');
+    } else if (!res.ok) {
+      const d = await res.json().catch(()=>({}));
+      appendAIMsg('assistant', '❌ Loi ' + res.status + ': ' + (d.error||'Khong xac dinh'));
+    } else {
+      const data = await res.json();
+      const reply = data.reply || '❌ Khong co phan hoi';
+      aiChatHistory.push({ role: 'assistant', content: reply });
+      appendAIMsg('assistant', reply);
+    }
+  } catch(err) {
+    document.getElementById('aiTyping')?.remove();
+    appendAIMsg('assistant', '❌ Khong ket noi duoc Gateway.\nKiem tra Gateway dang chay.');
+  }
+  if (btn) btn.disabled = false;
+  if (input) input.focus();
+}
+
+function sendQuickQuestion(q) { sendAIMessage(q); }
+
+
+function acvSetRange(range) {
+  currentTimeRange = range;
+  historicalCache = {};
+  ['day','week','month'].forEach(r => {
+    const b = document.getElementById('acv-btn-' + r);
+    if (b) b.classList.toggle('active', r === range);
+  });
+  const tu = document.getElementById('acv-update-time');
+  if (tu) tu.textContent = 'Cập nhật: ' + new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
+  renderAllCharts().then(() => acvUpdateSummary());
+}
+
+function acvUpdateSummary() {
+  const active = stations.filter(s => s.data && s.data.length >= 8 &&
+    (s.data[0]!==0 || s.data[1]!==0 || s.data[3]!==0));
+  if (active.length === 0) return;
+  const avg = (key) => (active.reduce((s,st) => s + parseFloat(st.data[key]||0), 0) / active.length).toFixed(1);
+  const avgPh   = avg(0);
+  const avgVwc  = avg(1);
+  const avgEc   = (active.reduce((s,st) => s + parseFloat(st.data[2]||0),0)/active.length).toFixed(2);
+  const avgTemp = avg(3);
+  const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+  set('acv-s-temp', avgTemp + '°C');
+  set('acv-s-vwc',  avgVwc + '%');
+  set('acv-s-ph',   avgPh);
+  set('acv-s-ec',   avgEc + ' dS/m');
+  const st = settings.stations;
+  const bdg = (id, ok) => {
+    const e = document.getElementById(id);
+    if (!e) return;
+    e.textContent = ok ? 'Bình thường' : 'Kiểm tra';
+    e.className = ok ? 'acv-badge-ok' : 'acv-badge-warn';
+  };
+  bdg('acv-badge-temp', avgTemp >= st.tempMin && avgTemp <= st.tempMax);
+  bdg('acv-badge-vwc',  avgVwc  >= st.humMin  && avgVwc  <= st.humMax);
+  bdg('acv-badge-ph',   avgPh   >= st.phMin   && avgPh   <= st.phMax);
+  bdg('acv-badge-ec',   true);
+}
+
+// ============================================================
+// HƯỚNG DẪN: Paste toàn bộ đoạn này vào CUỐI file script.js
+// ============================================================
+
+// ==================== AI EXPERT CHAT ====================
+
+let aixHistory    = [];
+let aixProvider   = 'offline';
+let aixCurrentSel = 'offline'; // option đang chọn trong UI
+
+// ── Hiển thị trang AI ──
+function showAIExpert() {
+  if (!requireLoginForStationDetail()) return;
+  if (typeof allChartsRefreshTimer !== 'undefined' && allChartsRefreshTimer) clearInterval(allChartsRefreshTimer);
+  if (typeof refreshTimer !== 'undefined' && refreshTimer) clearInterval(refreshTimer);
+  hideAllViews();
+  const v = document.getElementById('aiExpertView');
+  if (v) v.style.display = 'block';
+  if (typeof updateNavActive === 'function') updateNavActive('aiExpertView');
+  // Load config từ gateway
+  aixLoadConfig();
+}
+
+// ── Load config từ /api/ai-config ──
+async function aixLoadConfig() {
+  try {
+    const res  = await fetch('/api/ai-config');
+    if (!res.ok) return;
+    const data = await res.json();
+    const provider = data.provider || 'offline';
+    const key      = data.apiKey   || '';
+    const model    = data.model    || '';
+ 
+    // Lưu key thật vào sessionStorage để dùng khi save lại
+    // (tránh mất key khi user không nhập lại)
+    if (key) sessionStorage.setItem('aix_real_key', key);
+ 
+    if (provider === 'groq') {
+      aixSelectProvider('groq');
+      const ki = document.getElementById('aix-groq-key');
+      const mi = document.getElementById('aix-groq-model');
+      // Hiển thị mask nhưng lưu key thật vào data attribute
+      if (ki) {
+        ki.value = key ? '••••••••••••••••' : '';
+        if (key) ki.setAttribute('data-real-key', key);
+      }
+      if (mi && model) mi.value = model;
+      aixProvider = 'groq';
+ 
+    } else if (provider === 'anthropic' || provider === 'openai') {
+      aixSelectProvider('paid');
+      const pp = document.getElementById('aix-paid-provider');
+      const ki = document.getElementById('aix-paid-key');
+      const mi = document.getElementById('aix-paid-model');
+      if (pp) pp.value = provider;
+      if (ki) {
+        ki.value = key ? '••••••••••••••••' : '';
+        if (key) ki.setAttribute('data-real-key', key);
+      }
+      if (mi && model) mi.value = model;
+      aixProvider = provider;
+ 
+    } else {
+      aixSelectProvider('offline');
+      aixProvider = 'offline';
+    }
+ 
+    aixUpdateBadge(provider);
+    if (provider !== 'offline' && key) {
+      aixUpdateStatus('ok', `Đã cấu hình: ${provider} — key đã lưu`);
+    }
+ 
+  } catch(e) {
+    console.warn('[AIX] Load config error:', e);
+  }
+}
+ 
+
+// ── Chọn provider option ──
+function aixSelectProvider(opt) {
+  aixCurrentSel = opt;
+  // Reset tất cả
+  ['offline','groq','paid'].forEach(o => {
+    const el = document.getElementById('aix-opt-' + o);
+    if (el) el.className = 'aix-opt';
+  });
+  // Active option được chọn
+  const sel = document.getElementById('aix-opt-' + opt);
+  if (sel) sel.className = 'aix-opt sel-' + opt;
+  // Ẩn/hiện section config
+  const secGroq = document.getElementById('aix-sec-groq');
+  const secPaid = document.getElementById('aix-sec-paid');
+  if (secGroq) secGroq.className = 'aix-section' + (opt === 'groq' ? ' show' : '');
+  if (secPaid) secPaid.className = 'aix-section' + (opt === 'paid' ? ' show' : '');
+}
+
+// ── Lưu config lên Gateway ──
+async function aixSaveConfig(mode) {
+  let provider, apiKey, model;
+ 
+  if (mode === 'groq') {
+    provider = 'groq';
+    const ki = document.getElementById('aix-groq-key');
+    const mi = document.getElementById('aix-groq-model');
+    // Nếu user nhập key mới thì dùng, nếu còn mask thì lấy key thật từ data-attribute
+    const rawVal = ki ? ki.value.trim() : '';
+    if (rawVal && !rawVal.startsWith('•')) {
+      apiKey = rawVal; // key mới user vừa nhập
+    } else {
+      apiKey = (ki && ki.getAttribute('data-real-key')) || sessionStorage.getItem('aix_real_key') || '';
+    }
+    model = mi ? mi.value : 'llama-3.1-8b-instant';
+    if (!apiKey) {
+      alert('Vui lòng nhập Groq API key!');
+      return;
+    }
+ 
+  } else if (mode === 'paid') {
+    const pp = document.getElementById('aix-paid-provider');
+    const ki = document.getElementById('aix-paid-key');
+    const mi = document.getElementById('aix-paid-model');
+    provider = pp ? pp.value : 'anthropic';
+    const rawVal = ki ? ki.value.trim() : '';
+    if (rawVal && !rawVal.startsWith('•')) {
+      apiKey = rawVal;
+    } else {
+      apiKey = (ki && ki.getAttribute('data-real-key')) || sessionStorage.getItem('aix_real_key') || '';
+    }
+    model = mi ? mi.value : '';
+    if (!apiKey) {
+      alert('Vui lòng nhập API key!');
+      return;
+    }
+ 
+  } else {
+    // Offline
+    provider = 'offline'; apiKey = ''; model = '';
+  }
+ 
+  try {
+    const res = await fetch('/api/ai-config', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ provider, apiKey, model })
+    });
+    if (res.ok) {
+      // Lưu key thật vào sessionStorage và data-attribute
+      if (apiKey) sessionStorage.setItem('aix_real_key', apiKey);
+      const ki = document.getElementById(mode === 'groq' ? 'aix-groq-key' : 'aix-paid-key');
+      if (ki) ki.setAttribute('data-real-key', apiKey);
+ 
+      aixProvider = provider;
+      aixUpdateBadge(provider);
+      aixUpdateStatus('ok', `✅ Đã lưu lên Gateway — ${provider}`);
+      if (typeof showToast === 'function')
+        showToast('✅ Đã lưu cấu hình AI lên Gateway', 'success');
+    } else {
+      const err = await res.text();
+      aixUpdateStatus('err', 'Lỗi lưu config: ' + err);
+    }
+  } catch(e) {
+    aixUpdateStatus('err', 'Không kết nối được Gateway');
+  }
+}
+ 
+
+// ── Test kết nối API ──
+async function aixTest() {
+  aixUpdateStatus('off', 'Đang test kết nối...');
+  try {
+    const res  = await fetch('/api/ai-test', { method: 'POST' });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      aixUpdateStatus('ok', '✅ ' + (data.reply || 'Kết nối thành công!'));
+    } else {
+      aixUpdateStatus('err', '❌ ' + (data.reply || 'Kết nối thất bại'));
+    }
+  } catch(e) {
+    aixUpdateStatus('err', '❌ Không kết nối được Gateway');
+  }
+}
+
+// ── Cập nhật badge provider ──
+function aixUpdateBadge(provider) {
+  const badge = document.getElementById('aix-badge');
+  const hint  = document.getElementById('aix-hint');
+  if (!badge) return;
+  const map = {
+    offline:   { cls: 'aix-badge-offline',   txt: 'Offline' },
+    groq:      { cls: 'aix-badge-groq',       txt: 'Groq Free' },
+    anthropic: { cls: 'aix-badge-anthropic',  txt: 'Claude' },
+    openai:    { cls: 'aix-badge-openai',     txt: 'GPT' },
+  };
+  const info = map[provider] || map['offline'];
+  badge.className = 'aix-provider-badge ' + info.cls;
+  badge.textContent = info.txt;
+  if (hint) {
+    hint.textContent = provider === 'offline'
+      ? 'Offline mode · Phân tích rule-based từ dữ liệu cảm biến'
+      : 'Dữ liệu cảm biến gửi kèm · ESP32 proxy qua ' + info.txt;
+  }
+}
+
+// ── Cập nhật status chip ──
+function aixUpdateStatus(state, msg) {
+  const chip = document.getElementById('aix-status-main');
+  const txt  = document.getElementById('aix-status-text');
+  if (!chip || !txt) return;
+  chip.className = 'aix-status aix-status-' + state;
+  const dot = chip.querySelector('.aix-sdot');
+  if (dot) dot.className = 'aix-sdot aix-sdot-' + state;
+  txt.textContent = msg;
+}
+
+// ── Thêm message vào chat ──
+function aixAppendMsg(role, text) {
+  const box = document.getElementById('aix-messages');
+  if (!box) return;
+  // Xóa welcome nếu còn
+  const welcome = box.querySelector('.aix-bubble-ai');
+  if (welcome && welcome.closest('.aix-msg-ai') && aixHistory.length === 0) {
+    // giữ nguyên
+  }
+  const isUser = role === 'user';
+  const div = document.createElement('div');
+  div.className = isUser ? 'aix-msg-user' : 'aix-msg-ai';
+  if (isUser) {
+    div.innerHTML = `<div class="aix-bubble-user">${text}</div>`;
+  } else {
+    const now = new Date().toLocaleTimeString('vi-VN', {hour:'2-digit',minute:'2-digit'});
+    div.innerHTML = `
+      <div class="aix-avatar" style="width:26px;height:26px;font-size:13px;flex-shrink:0;">🌾</div>
+      <div>
+        <div class="aix-msg-lbl">Chuyên gia AI · ${now}</div>
+        <div class="aix-bubble-ai">${text}</div>
+      </div>`;
+  }
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+
+// ── Hiện typing indicator ──
+function aixShowTyping() {
+  const box = document.getElementById('aix-messages');
+  if (!box) return;
+  const div = document.createElement('div');
+  div.id = 'aix-typing';
+  div.className = 'aix-msg-ai';
+  div.innerHTML = `
+    <div class="aix-avatar" style="width:26px;height:26px;font-size:13px;flex-shrink:0;">🌾</div>
+    <div class="aix-bubble-ai" style="padding:10px 14px;">
+      <div class="aix-typing">
+        <div class="aix-dot"></div>
+        <div class="aix-dot"></div>
+        <div class="aix-dot"></div>
+      </div>
+    </div>`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+
+function aixHideTyping() {
+  const t = document.getElementById('aix-typing');
+  if (t) t.remove();
+}
+
+// ── Xây dựng context cảm biến ──
+// =============================================================
+// HƯỚNG DẪN ÁP DỤNG:
+// Tìm hàm: function aixBuildContext()
+// Thay THẾ từ hàm đó đến hết hàm aixSend() bằng toàn bộ file này
+// (giữ nguyên các hàm khác như aixLoadConfig, aixSaveConfig, v.v.)
+// =============================================================
+
+
+// ── Phân loại câu hỏi ──
+function aixClassifyQuestion(text) {
+  const t = text.toLowerCase()
+    .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g, 'a')
+    .replace(/[èéẹẻẽêềếệểễ]/g, 'e')
+    .replace(/[ìíịỉĩ]/g, 'i')
+    .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g, 'o')
+    .replace(/[ùúụủũưừứựửữ]/g, 'u')
+    .replace(/[ỳýỵỷỹ]/g, 'y')
+    .replace(/đ/g, 'd');
+
+  // Từ khóa liên quan hệ thống nông nghiệp/cảm biến
+  const agriKeywords = [
+    'tuoi', 'bon', 'phan', 'ph', 'ec', 'vwc', 'ndvi', 'do am', 'nhiet do',
+    'tram', 'cam bien', 'node', 'pin', 'sac', 'lora', 'gateway',
+    'canh bao', 'bat thuong', 'ket noi', 'tin hieu', 'du lieu',
+    'cay', 'dat', 'nuoc', 'phat trien', 'benh', 'sau', 'nang suat',
+    'bao cao', 'tong hop', 'phan tich', 'khuyen nghi', 'suc khoe',
+    'nir', 'red', 'anh sang', 'quang hop', 'diet chat', 'do dan dien',
+    'nhiet', 'am', 'muon', 'nen', 'co nen', 'bao nhieu', 'nhu the nao',
+    'kiem tra', 'xem', 'cho biet', 'tinh trang', 'hien tai'
+  ];
+
+  // Câu hỏi ngoài lề rõ ràng
+  const offTopicKeywords = [
+    'toan', 'tich phan', 'vi phan', 'vat ly', 'hoa hoc', 'lich su',
+    'the thao', 'bong da', 'phim', 'nhac', 'nau an', 'cong thuc nau',
+    'du lich', 'khach san', 'may bay', 'tien', 'chung khoan', 'bitcoin',
+    'lap trinh', 'code', 'python', 'javascript', 'html', 'sql',
+    'chinh tri', 'bau cu', 'tin tuc', 'bao', 'thoi su',
+    'tieng anh', 'dich thuat', 'ngoai ngu'
+  ];
+
+  const hasAgri    = agriKeywords.some(k => t.includes(k));
+  const hasOffTopic = offTopicKeywords.some(k => t.includes(k));
+
+  if (hasOffTopic && !hasAgri) return 'off_topic';
+  if (hasAgri)                 return 'agri';
+  return 'general'; // câu hỏi chung, vẫn trả lời nhưng nhẹ nhàng
+}
+
+
+// ── Build system prompt thông minh ──
+function aixBuildSystemPrompt(questionType) {
+  const basePersona = `Bạn là MIA Assistant - trợ lý nông nghiệp thông minh của hệ thống quan trắc đất MIA (Monitoring Intelligence Agriculture).
+
+THÔNG TIN VỀ BẢN THÂN:
+- Tên: MIA Assistant
+- Vai trò: Chuyên gia phân tích dữ liệu cảm biến đất và tư vấn canh tác
+- Nhà phát triển: Nhóm nghiên cứu MIA
+- KHÔNG đề cập đến ESP32, Arduino, vi điều khiển, hay phần cứng
+- KHÔNG tự giới thiệu là AI của hãng nào (Groq, Anthropic, OpenAI...)
+- Luôn xưng "tôi" và gọi người dùng là "bạn"`;
+
+  const agriExpertise = `
+CHUYÊN MÔN CỦA BẠN:
+- Phân tích pH đất, độ ẩm thể tích (VWC), độ dẫn điện (EC), nhiệt độ đất
+- Đọc và giải thích chỉ số NDVI từ cảm biến S2-411 (hướng lên - đo ánh sáng tới) và S2-412 (hướng xuống - đo phản xạ cây)
+- Tư vấn tưới nước, bón phân, phòng trừ sâu bệnh dựa trên dữ liệu thực tế
+- Cảnh báo bất thường từ các trạm cảm biến
+- Kết hợp dữ liệu tự động (cảm biến) với dữ liệu phân tích tay (N, P, K, Ca, Mg...)`;
+
+  const responseRules = `
+QUY TẮC TRẢ LỜI:
+1. Trả lời NGẮN GỌN, TỐI ĐA 300 từ, dùng tiếng Việt tự nhiên
+2. ƯU TIÊN dữ liệu thực tế từ cảm biến - nếu không có dữ liệu thì nói rõ "chưa nhận được tín hiệu"
+3. Khi có dữ liệu: đưa ra nhận xét CỤ THỂ (không nói chung chung)
+4. Khi KHÔNG có dữ liệu: giải thích ngắn lý do có thể và hướng xử lý
+5. KHÔNG bịa đặt số liệu, KHÔNG phân tích dữ liệu = 0 như thể có dữ liệu thật
+6. Dùng emoji ít thôi: ✅ ⚠️ 💧 🌱 là đủ
+7. KHÔNG dùng bảng markdown phức tạp khi dữ liệu trống
+8. Câu trả lời phải HÀNH ĐỘNG ĐƯỢC - người dùng biết phải làm gì tiếp theo`;
+
+  if (questionType === 'off_topic') {
+    return `${basePersona}
+
+${responseRules}
+
+QUAN TRỌNG: Câu hỏi này NẰM NGOÀI chuyên môn của bạn.
+Hãy lịch sự từ chối và hướng người dùng về chủ đề nông nghiệp/cảm biến.
+Ví dụ: "Câu hỏi này ngoài phạm vi chuyên môn của tôi. Tôi chỉ hỗ trợ về phân tích đất, tưới tiêu, bón phân và giám sát cây trồng. Bạn muốn hỏi gì về hệ thống quan trắc không?"`;
+  }
+
+  return `${basePersona}
+${agriExpertise}
+${responseRules}`;
+}
+
+
+// ── Build context cảm biến ──
+function aixBuildContext() {
+  if (typeof stations === 'undefined' || !stations || stations.length === 0)
+    return 'Chưa có dữ liệu từ các trạm cảm biến.';
+
+  let onlineCount = 0;
+  let ctx = '=== DỮ LIỆU CẢM BIẾN THỰC TẾ ===\n';
+  ctx += `Thời điểm: ${new Date().toLocaleString('vi-VN')}\n\n`;
+
+  // 6 trạm đất
+  ctx += '[TRẠM ĐẤT - Cảm biến pH, VWC, EC, Nhiệt độ]\n';
+  stations.slice(0, 6).forEach((s, i) => {
+    const d = s.data;
+    if (!d || d.length < 8) {
+      ctx += `  Trạm ${i+1} (${s.name}): Chưa có tín hiệu\n`;
+      return;
+    }
+    const hasData = d[0] !== 0 || d[1] !== 0 || d[3] !== 0;
+    if (hasData) {
+      onlineCount++;
+      const bat     = parseFloat(d[7] || 0).toFixed(0);
+      const chgText = d[8] === 2 ? 'Pin đầy' : d[8] === 1 ? 'Đang sạc' : 'Dùng pin';
+      ctx += `  Trạm ${i+1} (${s.name}): pH=${d[0]} | VWC=${d[1]}% | EC=${d[2]} dS/m | Nhiệt độ đất=${d[3]}°C | Pin=${bat}% (${chgText})\n`;
+    } else {
+      ctx += `  Trạm ${i+1} (${s.name}): Chưa có tín hiệu\n`;
+    }
+  });
+
+  ctx += `\nTổng trạm đất có tín hiệu: ${onlineCount}/6\n`;
+
+  // Trạm 7 - NDVI (hoàn toàn khác loại)
+  ctx += '\n[TRẠM 7 - Cảm biến ánh sáng & NDVI (đo sinh trưởng cây)]\n';
+  ctx += 'Chú ý: S2-411 hướng LÊN đo ánh sáng mặt trời tới; S2-412 hướng XUỐNG đo ánh sáng phản xạ từ tán cây\n';
+
+  const nd = (typeof lastNDVIData !== 'undefined') ? lastNDVIData : null;
+
+  if (nd && nd.valid && (nd.S2_411.red !== 0 || nd.S2_411.nir !== 0)) {
+    const r411 = nd.S2_411.red,  n411 = nd.S2_411.nir;
+    const r412 = nd.S2_412.red,  n412 = nd.S2_412.nir;
+    const nd411 = (n411 - r411) / ((n411 + r411) || 0.001);
+    const nd412 = (n412 - r412) / ((n412 + r412) || 0.001);
+    const avg   = (nd411 + nd412) / 2;
+
+    let health = '';
+    if      (avg < 0)   health = 'Giá trị âm - có thể đo mặt nước hoặc lỗi cảm biến';
+    else if (avg < 0.2) health = 'Rất thấp - đất trống hoặc cây chết';
+    else if (avg < 0.4) health = 'Thấp - cây phát triển yếu, cần can thiệp';
+    else if (avg < 0.6) health = 'Trung bình - cây phát triển ở mức chấp nhận được';
+    else                health = 'Tốt - cây phát triển khỏe mạnh';
+
+    ctx += `  S2-411: RED=${r411.toFixed(4)} W/m²·nm | NIR=${n411.toFixed(4)} W/m²·nm | Góc=${nd.S2_411.angle.toFixed(1)}°\n`;
+    ctx += `  S2-412: RED=${r412.toFixed(4)} W/m²·nm | NIR=${n412.toFixed(4)} W/m²·nm | Góc=${nd.S2_412.angle.toFixed(1)}°\n`;
+    ctx += `  NDVI-411=${nd411.toFixed(4)} | NDVI-412=${nd412.toFixed(4)} | NDVI trung bình=${avg.toFixed(4)}\n`;
+    ctx += `  Đánh giá sinh trưởng: ${health}\n`;
+    if (nd.node_battery !== undefined) {
+      ctx += `  Pin Trạm 7: ${nd.node_battery.toFixed(0)}%\n`;
+    }
+  } else {
+    // Thử fallback từ mảng stations
+    const ndviSt = stations.find(s =>
+      s.isNDVI || s.id === 'NDVI_NODE' ||
+      (typeof s.id === 'number' && s.id === 7)
+    );
+    if (ndviSt && ndviSt.data && ndviSt.data.length >= 7 &&
+        (ndviSt.data[0] !== 0 || ndviSt.data[6] !== 0)) {
+      const d = ndviSt.data;
+      ctx += `  S2-411: RED=${d[0]} | NIR=${d[1]} | Góc=${d[2]}°\n`;
+      ctx += `  S2-412: RED=${d[3]} | NIR=${d[4]} | Góc=${d[5]}°\n`;
+      ctx += `  NDVI=${d[6]}\n`;
+    } else {
+      ctx += '  Chưa có tín hiệu từ Trạm 7\n';
+    }
+  }
+
+  // Dữ liệu phân tích tay (N, P, K...) - nếu có
+  // Đọc từ biến toàn cục nếu module manual data đã load
+  if (typeof _mdLastManualSummary !== 'undefined' && _mdLastManualSummary) {
+    ctx += '\n[DỮ LIỆU PHÂN TÍCH TAY GẦN NHẤT]\n';
+    ctx += _mdLastManualSummary;
+  }
+
+  ctx += '\n=== KẾT THÚC DỮ LIỆU ===\n';
+  return ctx;
+}
+
+
+// ── Gửi message ──
+async function aixSend() {
+  const inp = document.getElementById('aix-input');
+  const btn = document.getElementById('aix-send-btn');
+  if (!inp) return;
+
+  const text = inp.value.trim();
+  if (!text) return;
+
+  inp.value = '';
+  if (btn) { btn.disabled = true; }
+  aixAppendMsg('user', text);
+
+  // Phân loại câu hỏi
+  const qType = aixClassifyQuestion(text);
+
+  // Build system prompt theo loại câu hỏi
+  const systemPrompt = aixBuildSystemPrompt(qType);
+
+  // Build context cảm biến (chỉ thêm nếu câu hỏi liên quan nông nghiệp)
+  let userContent = text;
+  if (qType !== 'off_topic') {
+    const ctx = aixBuildContext();
+    userContent = ctx + '\n\nCâu hỏi của người dùng: ' + text;
+  }
+
+  // Thêm vào history (giới hạn 10 lượt để tránh token quá dài)
+  aixHistory.push({ role: 'user', content: userContent });
+  if (aixHistory.length > 10) aixHistory = aixHistory.slice(-10);
+
+  aixShowTyping();
+
+  try {
+    // Gửi lên gateway - gateway sẽ forward tới Groq/Claude/GPT
+    const payload = {
+      system:   systemPrompt,
+      messages: aixHistory
+    };
+
+    const res = await fetch('/api/ai', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload)
+    });
+
+    aixHideTyping();
+
+    if (res.status === 404) {
+      aixAppendMsg('assistant',
+        '⚙️ Chưa kết nối được Gateway.\nVui lòng kiểm tra thiết bị MIA đang hoạt động và kết nối WiFi.');
+      return;
+    }
+
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      aixAppendMsg('assistant',
+        `⚠️ Lỗi kết nối (${res.status}). Vui lòng thử lại sau.`);
+      return;
+    }
+
+    const data     = await res.json();
+    let   reply    = data.reply    || '❌ Không có phản hồi từ AI.';
+    const provider = data.provider || 'offline';
+
+    // Lưu vào history (chỉ lưu reply thuần, không có context)
+    aixHistory.push({ role: 'assistant', content: reply });
+
+    // Hiển thị
+    aixAppendMsg('assistant', reply);
+
+    // Cập nhật badge provider
+    if (provider !== aixProvider) {
+      aixProvider = provider;
+      aixUpdateBadge(provider);
+    }
+
+  } catch(err) {
+    aixHideTyping();
+    console.error('[AIX] Send error:', err);
+    aixAppendMsg('assistant',
+      '❌ Không kết nối được Gateway MIA.\nKiểm tra thiết bị đang bật và WiFi hoạt động.');
+  } finally {
+    if (btn) btn.disabled = false;
+    if (inp) inp.focus();
+  }
+}
+
+
+// ── Gửi câu hỏi nhanh ──
+function aixQuick(q) {
+  const inp = document.getElementById('aix-input');
+  if (inp) inp.value = q;
+  aixSend();
+}
+
+
+// ── Xóa chat ──
+function aixClearChat() {
+  aixHistory = [];
+  const box = document.getElementById('aix-messages');
+  if (!box) return;
+  box.innerHTML = `
+    <div class="aix-msg-ai">
+      <div class="aix-avatar" style="width:26px;height:26px;font-size:13px;flex-shrink:0;">🌾</div>
+      <div>
+        <div class="aix-msg-lbl">MIA Assistant · Sẵn sàng</div>
+        <div class="aix-bubble-ai">Chat đã được xóa. Hãy đặt câu hỏi mới về hệ thống quan trắc của bạn!</div>
+      </div>
+    </div>`;
+}
+
+// =============================================================
+// HƯỚNG DẪN ÁP DỤNG:
+// 1. Tìm dòng:  // ==================== NHAP LIEU THU CONG ====================
+// 2. Xóa từ đó đến hết hàm mdDeleteField() (hàm cuối cùng của module)
+// 3. Paste toàn bộ nội dung file này vào thay thế
+// =============================================================
+
+// ==================== NHAP LIEU THU CONG ====================
+let manualFields = [];
+let _mdCurrentTab = 'entry'; // theo dõi tab hiện tại
+
+// ------------------------------------------------------------------
+// SHOW PAGE
+// ------------------------------------------------------------------
+async function showManualData() {
+  if (!requireLoginForStationDetail()) return;
+  if (typeof allChartsRefreshTimer !== 'undefined' && allChartsRefreshTimer)
+    clearInterval(allChartsRefreshTimer);
+  if (typeof refreshTimer !== 'undefined' && refreshTimer)
+    clearInterval(refreshTimer);
+  hideAllViews();
+
+  let view = document.getElementById('manualDataView');
+  if (!view) {
+    view = document.createElement('div');
+    view.id = 'manualDataView';
+    document.querySelector('.main-content').appendChild(view);
+  }
+  view.style.display = 'block';
+  view.innerHTML = `<div class="d-flex justify-content-center py-5">
+    <div class="spinner-border text-success"></div></div>`;
+
+  if (typeof updateNavActive === 'function') updateNavActive('manualDataView');
+
+  await mdLoadFields();
+  mdRender(view);
+  mdAttachEvents(); // Gắn tất cả sự kiện sau khi render
+}
+
+// ------------------------------------------------------------------
+// LOAD FIELDS TỪ GATEWAY
+// ------------------------------------------------------------------
+async function mdLoadFields() {
+  try {
+    const res = await fetch(`${GATEWAY_URL}/api/manual-fields`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        manualFields = data;
+        return;
+      }
+    }
+  } catch(e) {
+    console.warn('[ManualData] Cannot load fields from gateway:', e);
+  }
+  // Fallback mặc định nếu gateway không có
+  if (manualFields.length === 0) {
+    manualFields = [
+      {id:'N',    name:'Đạm tổng số (N)',   unit:'mg/kg',    ref_min:20,  ref_max:80,  required:true},
+      {id:'P',    name:'Lân dễ tiêu (P)',   unit:'mg/kg',    ref_min:5,   ref_max:25,  required:true},
+      {id:'K',    name:'Kali trao đổi (K)', unit:'meq/100g', ref_min:0.2, ref_max:1.5, required:true},
+      {id:'Ca',   name:'Canxi (Ca)',         unit:'meq/100g', ref_min:2,   ref_max:10,  required:false},
+      {id:'Mg',   name:'Magie (Mg)',         unit:'meq/100g', ref_min:0.5, ref_max:3,   required:false},
+      {id:'humus',name:'Hàm lượng mùn',     unit:'%',        ref_min:1,   ref_max:5,   required:false},
+    ];
+  }
+}
+
+// ------------------------------------------------------------------
+// RENDER TOÀN BỘ TRANG (chỉ gọi 1 lần hoặc khi thật sự cần)
+// ------------------------------------------------------------------
+function mdRender(view) {
+  if (!view) view = document.getElementById('manualDataView');
+  if (!view) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  view.innerHTML = `
+<style>
+  .md-tab-btn{background:transparent;border:none;padding:7px 16px;font-size:13px;
+    color:#6c757d;border-radius:8px;cursor:pointer;transition:all .15s}
+  .md-tab-btn.active{background:#fff;color:#212529;font-weight:500;
+    box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .md-sec{display:none}.md-sec.show{display:block}
+  .md-card{background:#fff;border-radius:12px;border:1px solid #e9ecef;padding:1.25rem}
+</style>
+
+<!-- HEADER -->
+<div class="d-flex align-items-center justify-content-between mb-3"
+     style="flex-wrap:wrap;gap:8px">
+  <div>
+    <h5 class="mb-0 fw-500">
+      <i class="fas fa-clipboard-list me-2 text-success"></i>Nhập liệu thủ công
+    </h5>
+    <div style="font-size:12px;color:#adb5bd;margin-top:2px">
+      N, P, K và các chỉ tiêu phân tích đất khác
+    </div>
+  </div>
+  <div style="display:flex;gap:4px;background:#f0f2f5;border-radius:10px;padding:3px">
+    <button class="md-tab-btn active" id="md-btn-entry"
+      onclick="mdTab('entry')">Nhập dữ liệu</button>
+    <button class="md-tab-btn" id="md-btn-history"
+      onclick="mdTab('history')">Lịch sử</button>
+    <button class="md-tab-btn" id="md-btn-fields"
+      onclick="mdTab('fields')">Quản lý trường</button>
+  </div>
+</div>
+
+<!-- ===== TAB NHẬP ===== -->
+<div id="md-entry" class="md-sec show">
+  <div class="md-card">
+    <div class="fw-500 mb-1">Phiếu nhập liệu</div>
+    <div style="font-size:12px;color:#6c757d;margin-bottom:1rem">
+      Điền thông tin mẫu và kết quả phân tích
+    </div>
+
+    <!-- Thông tin mẫu -->
+    <div class="row mb-3 pb-3 border-bottom">
+      <div class="col-md-4 mb-2">
+        <label class="form-label" style="font-size:12px;color:#6c757d">Ngày lấy mẫu</label>
+        <input type="date" class="form-control form-control-sm"
+          id="md-date" value="${today}">
+      </div>
+      <div class="col-md-4 mb-2">
+        <label class="form-label" style="font-size:12px;color:#6c757d">Tên / Mã mẫu *</label>
+        <input type="text" class="form-control form-control-sm"
+          id="md-label" placeholder="VD: Lô A1, Ruộng Bắc...">
+      </div>
+      <div class="col-md-4 mb-2">
+        <label class="form-label" style="font-size:12px;color:#6c757d">Độ sâu lấy mẫu</label>
+        <select class="form-select form-select-sm" id="md-depth">
+          <option value="">Chọn độ sâu...</option>
+          <option>0–20 cm</option>
+          <option>20–40 cm</option>
+          <option>40–60 cm</option>
+          <option>Khác</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Các trường phân tích - render động -->
+    <div class="row" id="md-fields-inputs">
+      ${mdBuildFieldInputs()}
+    </div>
+
+    <!-- Ghi chú -->
+    <label class="form-label" style="font-size:12px;color:#6c757d">Ghi chú</label>
+    <input type="text" class="form-control form-control-sm mb-3"
+      id="md-note" placeholder="VD: Lấy mẫu sau mưa 2 ngày...">
+
+    <!-- Footer nút -->
+    <div class="d-flex align-items-center justify-content-between pt-2 border-top">
+      <div style="font-size:11px;color:#adb5bd">
+        <i class="fas fa-sd-card me-1"></i>
+        Ghi vào SD: manual-${today}.csv
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" id="md-clear-btn">
+          <i class="fas fa-eraser me-1"></i>Xoá trắng
+        </button>
+        <button class="btn btn-sm btn-success" id="md-save-btn">
+          <i class="fas fa-check me-1"></i>Lưu dữ liệu
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB LỊCH SỬ ===== -->
+<div id="md-history" class="md-sec">
+  <div class="md-card">
+    <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+      <input type="text" class="form-control form-control-sm"
+        placeholder="Tìm tên mẫu..." style="width:160px" id="md-search">
+      <input type="date" class="form-control form-control-sm"
+        style="width:130px" id="md-from">
+      <span style="color:#adb5bd">→</span>
+      <input type="date" class="form-control form-control-sm"
+        style="width:130px" id="md-to" value="${today}">
+      <button class="btn btn-sm btn-outline-secondary" id="md-filter-btn">
+        <i class="fas fa-search me-1"></i>Lọc
+      </button>
+    </div>
+    <div id="md-hist-table">
+      <div class="text-center text-muted py-4" style="font-size:13px">
+        <i class="fas fa-spinner fa-spin me-2"></i>Đang tải...
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB QUẢN LÝ TRƯỜNG ===== -->
+<div id="md-fields" class="md-sec">
+  <div class="row g-3">
+
+    <!-- Danh sách trường hiện tại -->
+    <div class="col-md-6">
+      <div class="md-card p-0 overflow-hidden">
+        <div class="d-flex align-items-center justify-content-between
+             px-3 py-2 border-bottom" style="background:#f8f9fa">
+          <span style="font-size:13px;font-weight:500">
+            Trường hiện tại (<span id="md-field-count">${manualFields.length}</span>)
+          </span>
+        </div>
+        <div id="md-field-list">
+          ${mdBuildFieldList()}
+        </div>
+      </div>
+    </div>
+
+    <!-- Form thêm trường mới -->
+    <div class="col-md-6">
+      <div class="md-card">
+        <div style="font-size:13px;font-weight:500;margin-bottom:1rem">
+          <i class="fas fa-plus text-primary me-2"></i>Thêm trường mới
+        </div>
+        <div class="mb-2">
+          <label class="form-label" style="font-size:12px;color:#6c757d">
+            Tên hiển thị *
+          </label>
+          <input type="text" class="form-control form-control-sm"
+            id="nf-name" placeholder="VD: Lưu huỳnh tổng số (S)">
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="form-label" style="font-size:12px;color:#6c757d">
+              ID (dùng trong CSV) *
+            </label>
+            <input type="text" class="form-control form-control-sm"
+              id="nf-id" placeholder="VD: S">
+          </div>
+          <div class="col-6">
+            <label class="form-label" style="font-size:12px;color:#6c757d">
+              Đơn vị *
+            </label>
+            <input type="text" class="form-control form-control-sm"
+              id="nf-unit" placeholder="VD: mg/kg">
+          </div>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="form-label" style="font-size:12px;color:#6c757d">
+              Tham chiếu thấp
+            </label>
+            <input type="number" class="form-control form-control-sm"
+              id="nf-min" placeholder="VD: 10">
+          </div>
+          <div class="col-6">
+            <label class="form-label" style="font-size:12px;color:#6c757d">
+              Tham chiếu cao
+            </label>
+            <input type="number" class="form-control form-control-sm"
+              id="nf-max" placeholder="VD: 100">
+          </div>
+        </div>
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" id="nf-req">
+          <label class="form-check-label" style="font-size:13px" for="nf-req">
+            Bắt buộc nhập
+          </label>
+        </div>
+
+        <!-- Thông báo lỗi inline -->
+        <div id="nf-error" style="display:none;color:#dc3545;font-size:12px;
+          margin-bottom:8px;padding:6px 10px;background:#fde8e8;
+          border-radius:6px;"></div>
+
+        <button class="btn btn-primary btn-sm w-100" id="nf-add-btn">
+          <i class="fas fa-plus me-1"></i>Thêm trường
+        </button>
+        <div class="alert alert-info py-2 px-3 mt-3 mb-0"
+          style="font-size:12px">
+          <i class="fas fa-robot me-1"></i>
+          Trường mới tự xuất hiện trong form nhập và AI đọc được.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>`;
+
+  // Gắn events ngay sau render
+  mdAttachEvents();
+  // Load lịch sử ngầm
+  setTimeout(mdLoadHistory, 200);
+}
+
+// ------------------------------------------------------------------
+// BUILD HTML CHO INPUT CÁC TRƯỜNG (dùng lại không re-render toàn trang)
+// ------------------------------------------------------------------
+function mdBuildFieldInputs() {
+  if (!manualFields || manualFields.length === 0) {
+    return '<div class="col-12 text-muted" style="font-size:13px">Chưa có trường nào.</div>';
+  }
+  return manualFields.map(f => `
+    <div class="col-md-4 mb-3">
+      <label class="form-label d-flex justify-content-between"
+        style="font-size:12px;color:#6c757d">
+        <span>${f.name}${f.required ? ' <span style="color:#dc3545">*</span>' : ''}</span>
+        <span class="badge bg-light text-muted border"
+          style="font-size:10px">${f.unit}</span>
+      </label>
+      <input type="number" step="any"
+        class="form-control form-control-sm md-field-input"
+        data-id="${f.id}" id="mdf-${f.id}"
+        placeholder="${f.ref_min}">
+      <div style="font-size:10px;color:#adb5bd;margin-top:2px">
+        Tham chiếu: ${f.ref_min}–${f.ref_max} ${f.unit}
+      </div>
+    </div>`).join('');
+}
+
+// ------------------------------------------------------------------
+// BUILD HTML DANH SÁCH TRƯỜNG HIỆN TẠI
+// ------------------------------------------------------------------
+function mdBuildFieldList() {
+  if (!manualFields || manualFields.length === 0) {
+    return '<div class="text-muted text-center py-3" style="font-size:13px">Chưa có trường nào.</div>';
+  }
+  return manualFields.map(f => `
+    <div class="d-flex align-items-center gap-2 py-2 px-3 border-bottom md-field-item"
+      data-fid="${f.id}" style="font-size:13px">
+      <div class="flex-grow-1">
+        <div style="font-weight:500">${f.name}</div>
+        <div style="font-size:11px;color:#adb5bd">
+          ID: ${f.id} · ${f.unit} · ${f.ref_min}–${f.ref_max}
+        </div>
+      </div>
+      <span class="badge" style="font-size:10px;background:${f.required?'#d4edda':'#f8f9fa'};
+        color:${f.required?'#155724':'#6c757d'}">
+        ${f.required ? 'Bắt buộc' : 'Tuỳ chọn'}
+      </span>
+      <button class="btn btn-sm btn-link text-danger p-0 md-delete-field-btn"
+        data-fid="${f.id}" title="Xóa trường này">
+        <i class="fas fa-trash-alt" style="font-size:12px;pointer-events:none"></i>
+      </button>
+    </div>`).join('');
+}
+
+// ------------------------------------------------------------------
+// ATTACH EVENTS - gắn 1 lần, dùng event delegation cho các item động
+// ------------------------------------------------------------------
+function mdAttachEvents() {
+  // Nút Lưu dữ liệu
+  const saveBtn = document.getElementById('md-save-btn');
+  if (saveBtn) {
+    saveBtn.onclick = null; // xóa handler cũ nếu có
+    saveBtn.addEventListener('click', mdSave);
+  }
+
+  // Nút Xoá trắng
+  const clearBtn = document.getElementById('md-clear-btn');
+  if (clearBtn) {
+    clearBtn.onclick = null;
+    clearBtn.addEventListener('click', mdClear);
+  }
+
+  // Nút Lọc lịch sử
+  const filterBtn = document.getElementById('md-filter-btn');
+  if (filterBtn) {
+    filterBtn.onclick = null;
+    filterBtn.addEventListener('click', mdLoadHistory);
+  }
+
+  // Nút Thêm trường
+  const addBtn = document.getElementById('nf-add-btn');
+  if (addBtn) {
+    addBtn.onclick = null;
+    addBtn.addEventListener('click', mdAddField);
+  }
+
+  // Event delegation cho nút Xóa trường trong danh sách
+  const fieldList = document.getElementById('md-field-list');
+  if (fieldList) {
+    fieldList.onclick = function(e) {
+      // Tìm button xóa gần nhất
+      const btn = e.target.closest('.md-delete-field-btn');
+      if (btn) {
+        const fid = btn.getAttribute('data-fid');
+        if (fid) mdDeleteField(fid);
+      }
+    };
+  }
+}
+
+// ------------------------------------------------------------------
+// CHUYỂN TAB
+// ------------------------------------------------------------------
+function mdTab(tabName) {
+  _mdCurrentTab = tabName;
+  // Ẩn tất cả section
+  ['entry', 'history', 'fields'].forEach(t => {
+    const sec = document.getElementById('md-' + t);
+    const btn = document.getElementById('md-btn-' + t);
+    if (sec) sec.classList.remove('show');
+    if (btn) btn.classList.remove('active');
+  });
+  // Hiện section được chọn
+  const activeSec = document.getElementById('md-' + tabName);
+  const activeBtn = document.getElementById('md-btn-' + tabName);
+  if (activeSec) activeSec.classList.add('show');
+  if (activeBtn) activeBtn.classList.add('active');
+
+  if (tabName === 'history') mdLoadHistory();
+}
+
+// ------------------------------------------------------------------
+// XOÁ TRẮNG FORM NHẬP
+// ------------------------------------------------------------------
+function mdClear() {
+  ['md-label', 'md-note'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const depthEl = document.getElementById('md-depth');
+  if (depthEl) depthEl.value = '';
+  document.querySelectorAll('.md-field-input').forEach(el => el.value = '');
+  // Reset date về hôm nay
+  const dateEl = document.getElementById('md-date');
+  if (dateEl) dateEl.value = new Date().toISOString().slice(0, 10);
+}
+
+// ------------------------------------------------------------------
+// LƯU DỮ LIỆU - FIX CHÍNH
+// ------------------------------------------------------------------
+async function mdSave() {
+  // Disable nút tránh double-click
+  const saveBtn = document.getElementById('md-save-btn');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Đang lưu...'; }
+
+  try {
+    const dateEl  = document.getElementById('md-date');
+    const labelEl = document.getElementById('md-label');
+    const depthEl = document.getElementById('md-depth');
+    const noteEl  = document.getElementById('md-note');
+
+    const date  = dateEl  ? dateEl.value  : new Date().toISOString().slice(0, 10);
+    const label = labelEl ? labelEl.value.trim() : '';
+    const depth = depthEl ? depthEl.value : '';
+    const note  = noteEl  ? noteEl.value.trim() : '';
+
+    if (!label) {
+      showToast('Vui lòng nhập tên / mã mẫu', 'error');
+      if (labelEl) labelEl.focus();
+      return;
+    }
+
+    // Kiểm tra trường bắt buộc
+    for (const f of manualFields) {
+      if (f.required) {
+        const el = document.getElementById('mdf-' + f.id);
+        if (!el || el.value.trim() === '') {
+          showToast(`Vui lòng nhập: ${f.name}`, 'error');
+          if (el) el.focus();
+          return;
+        }
+      }
+    }
+
+    // Gom giá trị các trường
+    const values = {};
+    manualFields.forEach(f => {
+      const el = document.getElementById('mdf-' + f.id);
+      if (el && el.value.trim() !== '') {
+        values[f.id] = parseFloat(el.value);
+      }
+    });
+
+    const payload = { date, label, depth, note, values };
+    console.log('[mdSave] Payload:', JSON.stringify(payload));
+
+    const res = await fetch(`${GATEWAY_URL}/api/manual-data`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    console.log('[mdSave] Response status:', res.status);
+
+    if (res.ok) {
+      const result = await res.json().catch(() => ({}));
+      showToast(`✅ Đã lưu: ${result.file || 'manual-' + date + '.csv'}`, 'success');
+      mdClear();
+      setTimeout(mdLoadHistory, 300);
+    } else {
+      const errText = await res.text().catch(() => 'Unknown error');
+      console.error('[mdSave] Error:', res.status, errText);
+      showToast(`Lỗi ${res.status}: ${errText}`, 'error');
+    }
+
+  } catch(e) {
+    console.error('[mdSave] Exception:', e);
+    showToast('Không kết nối được Gateway: ' + e.message, 'error');
+  } finally {
+    // Luôn re-enable nút dù thành công hay thất bại
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="fas fa-check me-1"></i>Lưu dữ liệu';
+    }
+  }
+}
+
+// ------------------------------------------------------------------
+// THÊM TRƯỜNG MỚI - FIX CHÍNH
+// ------------------------------------------------------------------
+async function mdAddField() {
+  const addBtn  = document.getElementById('nf-add-btn');
+  const errDiv  = document.getElementById('nf-error');
+
+  // Hide lỗi cũ
+  if (errDiv) errDiv.style.display = 'none';
+
+  const nameEl  = document.getElementById('nf-name');
+  const idEl    = document.getElementById('nf-id');
+  const unitEl  = document.getElementById('nf-unit');
+  const minEl   = document.getElementById('nf-min');
+  const maxEl   = document.getElementById('nf-max');
+  const reqEl   = document.getElementById('nf-req');
+
+  const name = nameEl ? nameEl.value.trim() : '';
+  const id   = idEl   ? idEl.value.trim().replace(/\s+/g, '_') : '';
+  const unit = unitEl ? unitEl.value.trim() : '';
+  const min  = parseFloat(minEl && minEl.value ? minEl.value : '0') || 0;
+  const max  = parseFloat(maxEl && maxEl.value ? maxEl.value : '100') || 100;
+  const req  = reqEl  ? reqEl.checked : false;
+
+  // Validate
+  const showErr = (msg) => {
+    if (errDiv) { errDiv.textContent = msg; errDiv.style.display = 'block'; }
+    else showToast(msg, 'error');
+  };
+
+  if (!name) { showErr('Vui lòng nhập Tên hiển thị'); if (nameEl) nameEl.focus(); return; }
+  if (!id)   { showErr('Vui lòng nhập ID trường');    if (idEl)   idEl.focus();   return; }
+  if (!unit) { showErr('Vui lòng nhập Đơn vị');       if (unitEl) unitEl.focus(); return; }
+  if (manualFields.find(f => f.id === id)) {
+    showErr(`ID "${id}" đã tồn tại. Dùng ID khác.`);
+    if (idEl) idEl.focus();
+    return;
+  }
+
+  // Disable nút tránh double submit
+  if (addBtn) { addBtn.disabled = true; addBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Đang lưu...'; }
+
+  const newField = { id, name, unit, ref_min: min, ref_max: max, required: req };
+  manualFields.push(newField);
+  console.log('[mdAddField] New field:', newField, '| Total:', manualFields.length);
+
+  try {
+    const res = await fetch(`${GATEWAY_URL}/api/manual-fields`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(manualFields)
+    });
+
+    console.log('[mdAddField] Save response:', res.status);
+
+    if (res.ok) {
+      showToast(`✅ Đã thêm trường "${name}"`, 'success');
+
+      // Chỉ cập nhật 2 vùng DOM cần thiết, KHÔNG re-render toàn trang
+      // 1. Cập nhật danh sách trường
+      const fieldList = document.getElementById('md-field-list');
+      if (fieldList) fieldList.innerHTML = mdBuildFieldList();
+
+      // 2. Cập nhật counter
+      const countEl = document.getElementById('md-field-count');
+      if (countEl) countEl.textContent = manualFields.length;
+
+      // 3. Cập nhật input trong tab nhập liệu
+      const inputsContainer = document.getElementById('md-fields-inputs');
+      if (inputsContainer) inputsContainer.innerHTML = mdBuildFieldInputs();
+
+      // 4. Clear form thêm trường (KHÔNG re-render)
+      if (nameEl)  nameEl.value  = '';
+      if (idEl)    idEl.value    = '';
+      if (unitEl)  unitEl.value  = '';
+      if (minEl)   minEl.value   = '';
+      if (maxEl)   maxEl.value   = '';
+      if (reqEl)   reqEl.checked = false;
+      if (errDiv)  errDiv.style.display = 'none';
+
+      // 5. Re-attach event delegation cho danh sách trường mới
+      const fl = document.getElementById('md-field-list');
+      if (fl) {
+        fl.onclick = function(e) {
+          const btn = e.target.closest('.md-delete-field-btn');
+          if (btn) {
+            const fid = btn.getAttribute('data-fid');
+            if (fid) mdDeleteField(fid);
+          }
+        };
+      }
+
+    } else {
+      // Rollback nếu gateway lỗi
+      manualFields.pop();
+      const errText = await res.text().catch(() => 'Unknown');
+      console.error('[mdAddField] Error:', res.status, errText);
+      showErr(`Lỗi lưu lên Gateway (${res.status}): ${errText}`);
+    }
+
+  } catch(e) {
+    // Rollback
+    manualFields.pop();
+    console.error('[mdAddField] Exception:', e);
+    showErr('Không kết nối được Gateway: ' + e.message);
+  } finally {
+    if (addBtn) {
+      addBtn.disabled = false;
+      addBtn.innerHTML = '<i class="fas fa-plus me-1"></i>Thêm trường';
+    }
+  }
+}
+
+// ------------------------------------------------------------------
+// XÓA TRƯỜNG
+// ------------------------------------------------------------------
+async function mdDeleteField(fid) {
+  const field = manualFields.find(f => f.id === fid);
+  if (!field) { showToast('Không tìm thấy trường cần xóa', 'error'); return; }
+
+  if (!confirm(`Xóa trường "${field.name}" (ID: ${fid})?\nDữ liệu đã lưu trong CSV không bị ảnh hưởng.`)) return;
+
+  const backup = [...manualFields];
+  manualFields = manualFields.filter(f => f.id !== fid);
+
+  try {
+    const res = await fetch(`${GATEWAY_URL}/api/manual-fields`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(manualFields)
+    });
+
+    if (res.ok) {
+      showToast(`✅ Đã xóa trường "${field.name}"`, 'success');
+
+      // Cập nhật UI mà không re-render toàn trang
+      const fieldList = document.getElementById('md-field-list');
+      if (fieldList) fieldList.innerHTML = mdBuildFieldList();
+
+      const countEl = document.getElementById('md-field-count');
+      if (countEl) countEl.textContent = manualFields.length;
+
+      const inputsContainer = document.getElementById('md-fields-inputs');
+      if (inputsContainer) inputsContainer.innerHTML = mdBuildFieldInputs();
+
+      // Re-attach event delegation
+      const fl = document.getElementById('md-field-list');
+      if (fl) {
+        fl.onclick = function(e) {
+          const btn = e.target.closest('.md-delete-field-btn');
+          if (btn) {
+            const fid2 = btn.getAttribute('data-fid');
+            if (fid2) mdDeleteField(fid2);
+          }
+        };
+      }
+
+    } else {
+      manualFields = backup;
+      showToast('Lỗi xóa trường trên Gateway', 'error');
+    }
+  } catch(e) {
+    manualFields = backup;
+    showToast('Không kết nối được Gateway: ' + e.message, 'error');
+  }
+}
+
+// ------------------------------------------------------------------
+// LOAD LỊCH SỬ TỪ SD
+// ------------------------------------------------------------------
+async function mdLoadHistory() {
+  const el = document.getElementById('md-hist-table');
+  if (!el) return;
+
+  el.innerHTML = `<div class="text-center text-muted py-3" style="font-size:13px">
+    <i class="fas fa-spinner fa-spin me-2"></i>Đang tải từ SD...</div>`;
+
+  let rows = [];
+  try {
+    const filesRes = await fetch(`${GATEWAY_URL}/api/sd/files`);
+    if (!filesRes.ok) throw new Error('Cannot get file list');
+    const files = await filesRes.json();
+    const mfiles = files
+      .filter(f => f.startsWith('manual-') && f.endsWith('.csv'))
+      .sort()
+      .reverse()
+      .slice(0, 5);
+
+    for (const fname of mfiles) {
+      try {
+        const csv = await fetch(`${GATEWAY_URL}/api/sd/download?file=${encodeURIComponent(fname)}`).then(r => r.text());
+        if (!csv || csv.trim().length === 0) continue;
+        const lines = csv.trim().split('\n');
+        if (lines.length < 2) continue;
+        const headers = lines[0].split(',').map(h => h.trim());
+        for (let i = lines.length - 1; i >= 1; i--) {
+          if (!lines[i].trim()) continue;
+          const vals = lines[i].split(',').map(v => v.trim());
+          const obj = {};
+          headers.forEach((h, j) => obj[h] = vals[j] || '');
+          rows.push(obj);
+        }
+      } catch(e) {
+        console.warn('[mdLoadHistory] Cannot read file:', fname, e);
+      }
+    }
+  } catch(e) {
+    console.warn('[mdLoadHistory] Error:', e);
+  }
+
+  if (rows.length === 0) {
+    el.innerHTML = `<div class="text-center text-muted py-4" style="font-size:13px">
+      <i class="fas fa-clipboard me-2"></i>Chưa có dữ liệu phân tích tay</div>`;
+    return;
+  }
+
+  // Lọc theo search/date
+  const search = (document.getElementById('md-search')?.value || '').toLowerCase();
+  const from   = document.getElementById('md-from')?.value  || '';
+  const to     = document.getElementById('md-to')?.value    || '';
+  if (search) rows = rows.filter(r => (r['Ten mau'] || '').toLowerCase().includes(search));
+  if (from)   rows = rows.filter(r => (r['Ngay lay mau'] || '') >= from);
+  if (to)     rows = rows.filter(r => (r['Ngay lay mau'] || '') <= to);
+
+  const fixed = ['Timestamp', 'Ngay lay mau', 'Ten mau', 'Do sau', 'Ghi chu'];
+  const dynCols = Object.keys(rows[0] || {}).filter(k => !fixed.includes(k));
+
+  const thead = dynCols.map(c => {
+    const f = manualFields.find(f => f.id === c);
+    return `<th style="font-size:12px;white-space:nowrap">
+      ${f ? f.name.replace(/\(.*?\)/, '').trim() : c}
+      <br><span style="font-weight:400;color:#adb5bd;font-size:10px">${f ? f.unit : ''}</span>
+    </th>`;
+  }).join('');
+
+  const tbody = rows.slice(0, 50).map(r => {
+    const cells = dynCols.map(c => {
+      const v = r[c];
+      if (!v || v === '') return '<td style="color:#dee2e6">—</td>';
+      const n = parseFloat(v);
+      const f = manualFields.find(f => f.id === c);
+      const warn = f && !isNaN(n) && (n < f.ref_min || n > f.ref_max);
+      return `<td style="${warn ? 'color:#dc3545;font-weight:500' : ''}">${isNaN(n) ? v : n.toFixed(2)}</td>`;
+    }).join('');
+
+    return `<tr>
+      <td style="font-size:12px;color:#6c757d;white-space:nowrap">${r['Ngay lay mau'] || ''}</td>
+      <td style="font-weight:500">${r['Ten mau'] || ''}</td>
+      <td style="font-size:12px;color:#6c757d">${r['Do sau'] || '—'}</td>
+      ${cells}
+      <td style="font-size:11px;color:#adb5bd">${r['Ghi chu'] || '—'}</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="overflow-x:auto">
+      <table class="table table-sm mb-0" style="font-size:13px">
+        <thead style="background:#f8f9fa">
+          <tr>
+            <th style="font-size:12px">Ngày</th>
+            <th style="font-size:12px">Tên / Mã mẫu</th>
+            <th style="font-size:12px">Độ sâu</th>
+            ${thead}
+            <th style="font-size:12px">Ghi chú</th>
+          </tr>
+        </thead>
+        <tbody>${tbody}</tbody>
+      </table>
+    </div>
+    <div style="font-size:11px;color:#adb5bd;padding:8px 4px">
+      ${rows.length} bản ghi ·
+      <span style="color:#dc3545">Màu đỏ</span> = ngoài ngưỡng tham chiếu
+    </div>`;
+}
