@@ -1379,7 +1379,7 @@ function getTimeSeriesData(nodeData) {
 
 // Hàm chính: lấy dữ liệu lịch sử cho một node, theo range ('day', 'week', 'month')
 async function getHistoricalDataFromSD(stationId, range) {
-  // 1. Chuyển stationId (có thể là "STA001" hoặc 1) thành số nguyên
+  // Chuyển stationId thành số nguyên
   let stationNumber;
   if (typeof stationId === 'number') {
     stationNumber = stationId;
@@ -1388,124 +1388,106 @@ async function getHistoricalDataFromSD(stationId, range) {
     stationNumber = match ? parseInt(match[0], 10) : 1;
   }
 
-  const now = new Date();
-  let fileNames = [];
+  // Tính số ngày cần lấy theo range
+  const daysMap = { day: 1, week: 7, month: 30 };
+  const days = daysMap[range] || 7;
 
-  // 2. Tạo danh sách tên file cần đọc dựa theo range
-  if (range === 'day') {
-    const today = now.toISOString().slice(0, 10);
-    fileNames = [`${today}.csv`];
-  } else if (range === 'week') {
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      fileNames.push(d.toISOString().slice(0, 10) + '.csv');
-    }
-  } else if (range === 'month') {
-    for (let i = 0; i < 30; i++) {
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      fileNames.push(d.toISOString().slice(0, 10) + '.csv');
-    }
-  }
-
-  // 3. Lấy danh sách file có thật trên SD
-  let existingFiles = [];
   try {
-    existingFiles = await fetchSDCardFiles(); // phải trả về mảng tên file, ví dụ ["2026-04-24.csv", ...]
-  } catch (err) {
-    console.warn("Không thể lấy danh sách file từ SD:", err);
-  }
+    // Gọi Google Sheets Web App
+    const res = await fetch(`${SHEETS_URL}?action=getData&days=${days}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = await res.json();
+    if (!rows || rows.length === 0) return null;
 
-  let allRows = [];
-  for (const fname of fileNames) {
-    if (!existingFiles.includes(fname)) continue;
-    try {
-      const csvText = await fetchCSVContent(fname);
-      const rows = parseCSV(csvText);        // parseCSV phải trả về mảng object với các cột đúng tên
-      const nodeRows = rows.filter(row => {
-        const nodeId = row['Node ID'] || row['node_id'] || row['nodeId'];
-        return parseInt(nodeId) === stationNumber;
+    // Lọc theo node
+    const nodeRows = rows.filter(row => {
+      const nodeId = row['Node ID'] || row['NodeID'] || '';
+      return parseInt(nodeId) === stationNumber;
+    });
+
+    if (nodeRows.length === 0) return null;
+
+    // Xử lý theo range
+    if (range === 'day') {
+      // Giữ nguyên timestamp theo giờ
+      const points = nodeRows.map(row => ({
+        timestamp: row['Timestamp'] || '',
+        temp: parseFloat(row['Temp (C)']     || row['Temperature (C)'] || 0),
+        hum:  parseFloat(row['VWC (%)']      || row['Humidity (%)']    || 0),
+        ph:   parseFloat(row['pH']           || 0),
+        ec:   parseFloat(row['EC (dS/m)']    || 0)
+      })).filter(p => !isNaN(p.temp) && !isNaN(p.hum))
+        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+      return {
+        labels: points.map(p => p.timestamp),
+        temps:  points.map(p => p.temp),
+        hums:   points.map(p => p.hum),
+        phs:    points.map(p => p.ph),
+        ecs:    points.map(p => p.ec)
+      };
+
+    } else {
+      // Nhóm theo ngày, tính trung bình
+      const dayMap = new Map();
+
+      nodeRows.forEach(row => {
+        const ts = row['Timestamp'] || '';
+        if (!ts) return;
+
+        // Parse timestamp "24/05/2026, 10:30:00" → "2026-05-24"
+        let dateKey;
+        if (ts.includes('/')) {
+          const datePart = ts.split(',')[0].trim(); // "24/05/2026"
+          const parts = datePart.split('/');
+          if (parts.length === 3) {
+            dateKey = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+          }
+        } else {
+          dateKey = ts.split(' ')[0];
+        }
+        if (!dateKey) return;
+
+        const temp = parseFloat(row['Temp (C)']  || row['Temperature (C)'] || 0);
+        const hum  = parseFloat(row['VWC (%)']   || row['Humidity (%)']    || 0);
+        const ph   = parseFloat(row['pH']         || 0);
+        const ec   = parseFloat(row['EC (dS/m)'] || 0);
+        if (isNaN(temp) || isNaN(hum)) return;
+
+        if (!dayMap.has(dateKey)) {
+          dayMap.set(dateKey, { temps: [], hums: [], phs: [], ecs: [] });
+        }
+        const entry = dayMap.get(dateKey);
+        entry.temps.push(temp);
+        entry.hums.push(hum);
+        entry.phs.push(ph);
+        entry.ecs.push(ec);
       });
-      allRows.push(...nodeRows);
-    } catch (err) {
-      console.warn(`Không đọc được file ${fname}:`, err);
-    }
-  }
 
-  // 4. Nếu không có dữ liệu thật → fallback sang giả lập
-  if (allRows.length === 0) {
-    console.warn(`⚠️ Không có dữ liệu CSV cho trạm ${stationId},.`);
-   // return generateHistoricalData(stationNumber, range);
-  }
+      const grouped = Array.from(dayMap.entries())
+        .map(([date, vals]) => ({
+          date,
+          avgTemp: vals.temps.reduce((a, b) => a + b, 0) / vals.temps.length,
+          avgHum:  vals.hums.reduce((a, b)  => a + b, 0) / vals.hums.length,
+          avgPh:   vals.phs.reduce((a, b)   => a + b, 0) / vals.phs.length,
+          avgEc:   vals.ecs.reduce((a, b)   => a + b, 0) / vals.ecs.length
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
 
-  // 5. Xử lý dữ liệu theo range
-  if (range === 'day') {
-    // Giữ nguyên timestamp (giờ:phút)
-    const points = allRows.map(row => ({
-      timestamp: row['Timestamp'] || row['timestamp'],
-      temp: parseFloat(row['Temperature (C)'] || row['temperature']),
-      hum: parseFloat(row['Humidity (%)'] || row['humidity']),
-      ph:  parseFloat(row['pH']),
-      ec:  parseFloat(row['EC (µS/cm)'] || row['ec'])
-    })).filter(p => !isNaN(p.temp) && !isNaN(p.hum) && !isNaN(p.ph) && !isNaN(p.ec))
-      .sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-    const labels = points.map(p => p.timestamp);
-    const temps = points.map(p => p.temp);
-    const hums = points.map(p => p.hum);
-    const phs = points.map(p => p.ph);
-    const ecs = points.map(p => p.ec);
-    return { labels, temps, hums, phs, ecs };
-  } 
-  else {
-    // Nhóm theo ngày (YYYY-MM-DD) và tính trung bình
-    const dayMap = new Map();
-    for (const row of allRows) {
-      let rawTimestamp = row['Timestamp'] || row['timestamp'];
-      if (!rawTimestamp) continue;
-      // Chuyển timestamp "4/23/2026 16:38" -> "2026-04-23"
-      let dateKey;
-      if (rawTimestamp.includes('/')) {
-        const [month, day, year] = rawTimestamp.split(' ')[0].split('/');
-        dateKey = `${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}`;
-      } else {
-        dateKey = rawTimestamp.split(' ')[0]; // nếu đã có định dạng YYYY-MM-DD
-      }
-      const temp = parseFloat(row['Temperature (C)'] || row['temperature']);
-      const hum = parseFloat(row['Humidity (%)'] || row['humidity']);
-      const ph = parseFloat(row['pH']);
-      const ec = parseFloat(row['EC (µS/cm)'] || row['ec']);
-      if (isNaN(temp) || isNaN(hum) || isNaN(ph) || isNaN(ec)) continue;
-
-      if (!dayMap.has(dateKey)) {
-        dayMap.set(dateKey, { temps: [], hums: [], phs: [], ecs: [] });
-      }
-      const entry = dayMap.get(dateKey);
-      entry.temps.push(temp);
-      entry.hums.push(hum);
-      entry.phs.push(ph);
-      entry.ecs.push(ec);
+      return {
+        labels: grouped.map(g => g.date),
+        temps:  grouped.map(g => +g.avgTemp.toFixed(1)),
+        hums:   grouped.map(g => +g.avgHum.toFixed(1)),
+        phs:    grouped.map(g => +g.avgPh.toFixed(2)),
+        ecs:    grouped.map(g => +g.avgEc.toFixed(3))
+      };
     }
 
-    const grouped = Array.from(dayMap.entries()).map(([date, vals]) => ({
-      date,
-      avgTemp: vals.temps.reduce((a,b)=>a+b,0)/vals.temps.length,
-      avgHum: vals.hums.reduce((a,b)=>a+b,0)/vals.hums.length,
-      avgPh: vals.phs.reduce((a,b)=>a+b,0)/vals.phs.length,
-      avgEc: vals.ecs.reduce((a,b)=>a+b,0)/vals.ecs.length
-    })).sort((a,b) => a.date.localeCompare(b.date));
-
-    const labels = grouped.map(g => g.date);
-    const temps = grouped.map(g => g.avgTemp);
-    const hums = grouped.map(g => g.avgHum);
-    const phs = grouped.map(g => g.avgPh);
-    const ecs = grouped.map(g => g.avgEc);
-    return { labels, temps, hums, phs, ecs };
+  } catch(err) {
+    console.error(`[getHistoricalData] Trạm ${stationId} lỗi:`, err);
+    return null;
   }
 }
-
-
 
 
 
