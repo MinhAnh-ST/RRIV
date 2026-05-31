@@ -1591,7 +1591,7 @@ async function renderAllCharts() {
                 { type: 'slider', bottom: 5, height: 20, start: 0, end: 100 },
                 { type: 'inside', start: 0, end: 100 }
               ],
-              
+
               xAxis: {
                 type: 'category',
                 boundaryGap: false,
@@ -1658,7 +1658,8 @@ function showAllCharts() {
   hideAllViews();
   const allChartsView = document.getElementById('allChartsView');
   if (allChartsView) {
-    allChartsView.style.display = 'block';
+    allChartsView.style.display = 'flex';
+allChartsView.style.flexDirection = 'column';
     currentTimeRange = 'week';
     historicalCache = {};
     ['day','week','month'].forEach(r => {
