@@ -176,7 +176,7 @@ async function fetchRealDataFromGateway() {
           isRealGPS: hasGPS
         }
       });
-    }
+    
     stations = newStations;
     // Thêm node NDVI từ Firebase
 const ndviNode = nodesData['ndvi'];
