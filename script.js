@@ -648,8 +648,7 @@ function createCustomMarker(station) {
   });
 }
 
-function createStationPopup(station, index) {/*Phiên bản 2.0 cập nhật 2/4/2026*/
-  // Check dữ liệu cảm biến thực (bỏ qua voltage mặc định ở index 9)
+function createStationPopup(station, index) {
   const hasData = station.isNDVI
     ? station.data && (station.data[2] !== 0 || station.data[5] !== 0 || station.data[6] !== 0 || station.data[7] !== 0)
     : station.data && (station.data[0] !== 0 || station.data[1] !== 0 || station.data[2] !== 0 || station.data[3] !== 0);
@@ -665,17 +664,60 @@ function createStationPopup(station, index) {/*Phiên bản 2.0 cập nhật 2/4
   if (alerts.length > 0) {
     alertsHtml = `<hr class="my-1"><div class="alert alert-warning py-1 my-1 small" style="background:#fff3cd; border-radius:6px;"><i class="fas fa-exclamation-triangle text-danger"></i> <strong>Cảnh báo:</strong><br>${alerts.map(a => a.text).join('<br>')}</div>`;
   }
-  
-  
-  
-  return `
-    <div class="station-popup-content" style="min-width: 300px;">
-      <div class="d-flex justify-content-between align-items-start mb-2">
-        <h6 class="mb-0"><i class="fas fa-microchip me-1"></i> ${station.name}</h6>
-        ${statusText}
-      </div>
-      <hr class="my-1">
-      ${hasData ? `
+
+  let sensorHtml = '';
+  if (!hasData) {
+    sensorHtml = `
+      <div class="text-center py-3">
+        <i class="fas fa-satellite-dish fa-2x mb-2 d-block" style="color:#adb5bd;"></i>
+        <span class="text-muted small">Chưa nhận được dữ liệu từ trạm</span>
+      </div>`;
+  } else if (station.isNDVI) {
+    const ndvi = station.data[6];
+    const ndviColor = ndvi > 0.5 ? '#28a745' : ndvi > 0.2 ? '#ffc107' : '#dc3545';
+    const ndviLabel = ndvi > 0.5 ? 'Phát triển tốt' : ndvi > 0.2 ? 'Trung bình' : 'Yếu / Đất trống';
+    sensorHtml = `
+      <div class="text-muted small mb-1"><strong>Node NDVI — Cảm biến ánh sáng</strong></div>
+      <div class="station-info mb-2">
+        <div class="text-muted small mb-1"><strong>S2-411 (Hướng lên — ánh sáng tới):</strong></div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span><i class="fas fa-sun text-danger"></i> Red UP:</span>
+          <strong>${parseFloat(station.data[0]).toFixed(4)} W/m²</strong>
+        </div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span><i class="fas fa-bullseye text-secondary"></i> NIR UP:</span>
+          <strong>${parseFloat(station.data[1]).toFixed(4)} W/m²</strong>
+        </div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span><i class="fas fa-angle-up text-info"></i> Góc UP:</span>
+          <strong>${parseFloat(station.data[2]).toFixed(1)}°</strong>
+        </div>
+        <hr class="my-1">
+        <div class="text-muted small mb-1"><strong>S2-412 (Hướng xuống — phản xạ cây):</strong></div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span><i class="fas fa-sun text-warning"></i> Red DOWN:</span>
+          <strong>${parseFloat(station.data[3]).toFixed(4)} W/m²</strong>
+        </div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span><i class="fas fa-bullseye text-primary"></i> NIR DOWN:</span>
+          <strong>${parseFloat(station.data[4]).toFixed(4)} W/m²</strong>
+        </div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span><i class="fas fa-angle-down text-info"></i> Góc DOWN:</span>
+          <strong>${parseFloat(station.data[5]).toFixed(1)}°</strong>
+        </div>
+        <hr class="my-1">
+        <div class="d-flex justify-content-between small mb-1">
+          <span><i class="fas fa-leaf text-success"></i> NDVI:</span>
+          <strong style="color:${ndviColor};">${parseFloat(ndvi).toFixed(4)} — ${ndviLabel}</strong>
+        </div>
+        <div class="d-flex justify-content-between small">
+          <span><i class="fas fa-battery-three-quarters text-success"></i> Pin node:</span>
+          <strong>${parseFloat(station.data[7]).toFixed(1)}%</strong>
+        </div>
+      </div>`;
+  } else {
+    sensorHtml = `
       <div class="text-muted small mb-1"><strong>Cảm biến ES PH SOIL 01</strong></div>
       <div class="station-info mb-2">
         <div class="d-flex justify-content-between small mb-1">
@@ -699,23 +741,27 @@ function createStationPopup(station, index) {/*Phiên bản 2.0 cập nhật 2/4
         <hr class="my-1">
         <div class="d-flex justify-content-between small">
           <span><i class="fas fa-battery-three-quarters text-success"></i> Pin hệ thống:</span>
-          <strong>${station.data[7].toFixed(1)}%</strong>
+          <strong>${parseFloat(station.data[7]).toFixed(1)}%</strong>
         </div>
         <div class="d-flex justify-content-between small">
           <span><i class="fas fa-solar-panel text-info"></i> Trạng thái:</span>
           <strong>${station.data[8] === 1 ? "⚡ Đang sạc" : (station.data[8] === 2 ? "✅ Pin đầy" : "🔋 Đang dùng pin")}</strong>
         </div>
         ${alertsHtml}
-      </div>` : `
-      <div class="text-center py-3">
-        <i class="fas fa-satellite-dish fa-2x mb-2 d-block" style="color:#adb5bd;"></i>
-        <span class="text-muted small">Chưa nhận được dữ liệu từ trạm</span>
-      </div>`}
-      
+      </div>`;
+  }
+
+  return `
+    <div class="station-popup-content" style="min-width: 300px;">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <h6 class="mb-0"><i class="fas fa-microchip me-1"></i> ${station.name}</h6>
+        ${statusText}
+      </div>
+      <hr class="my-1">
+      ${sensorHtml}
       <div class="gps-info small text-muted mb-3">
         <div><i class="fas fa-map-marker-alt"></i> ${station.location.lat.toFixed(6)}, ${station.location.lng.toFixed(6)}</div>
       </div>
-      
       <div class="d-grid gap-2">
         <button class="btn btn-sm btn-primary" onclick="showStationFromMap(${index})">
           <i class="fas fa-chart-line me-1"></i> Xem chi tiết
