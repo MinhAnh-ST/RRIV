@@ -1,0 +1,1753 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RRIV - Bản đồ trạm</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://code.highcharts.com/highcharts.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/moment-timezone@0.5.34/builds/moment-timezone-with-data.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luxon@2.3.0/build/global/luxon.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <header class="header d-flex justify-content-between align-items-center px-4 shadow-sm">
+    <div class="dashboard-title logo-box d-flex align-items-center">
+      <img src="https://uploads.onecompiler.io/44b3565hb/44b3569h2/vien%20CS-logo.jpg" alt="DTMA2 Logo"
+        class="logo2-img">
+      <span class="device-name ms-2"></span>
+    </div>
+
+    <nav class="win13-nav">
+      <a href="#" onclick="showMainDashboard()" class="nav-item active" title="Bản đồ trạm">
+        <i class="fa-solid fa-map-location-dot"></i>
+      </a>
+      <a href="#" onclick="showMonitoring()" class="nav-item" title="Giám sát trạm">
+        <i class="fa-solid fa-table-cells"></i>
+      </a>
+
+      <a href="#" onclick="showAllCharts()" class="nav-item" title="Biểu đồ tổng">
+        <i class="fa-solid fa-chart-line"></i>
+      </a>
+      <a href="#" onclick="showNDVI()" class="nav-item" title="NIR">
+        <i class="fa-solid fa-leaf"></i>
+      </a>
+      <a href="#" onclick="showWeather()" class="nav-item" title="Thời tiết">
+        <i class="fa-solid fa-cloud-sun"></i>
+      </a>
+      <a href="#" onclick="showManualData()" class="nav-item" title="Nhập liệu thủ công">
+        <i class="fa-solid fa-clipboard-list"></i>
+      </a>
+      <a href="#" onclick="showAIExpert()" class="nav-item" title="AI Chuyên gia">
+        <i class="fa-solid fa-robot"></i>
+      </a>
+      <a href="#" onclick="showSettings()" class="nav-item" title="Cài đặt">
+        <i class="fa-solid fa-gear"></i>
+      </a>
+
+    </nav>
+
+    <div class="user-area d-flex align-items-center">
+      <div class="ios-control-group d-flex align-items-center gap-2 me-3">
+        <!--
+        <button id="changeWifiBtn" class="ios-btn" data-bs-toggle="modal" data-bs-target="#wifiConfigModal">
+          <i class="fas fa-wifi" style="color: #ff9f0a;"></i>
+        </button>
+      -->
+
+        <!-- Nút WiFi hiển thị channel -->
+
+
+        <div style="position: relative; display: inline-block;">
+          <button id="changeWifiBtn" class="ios-btn" data-bs-toggle="modal" data-bs-target="#wifiConfigModal">
+            <i class="fas fa-wifi" style="color: #ff9f0a;"></i>
+          </button>
+          <div
+            style="position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%); font-size: 10px; background: rgba(0,0,0,0.7); color: white; padding: 2px 6px; border-radius: 12px; white-space: nowrap; z-index: 100;">
+            <span id="wifiChannelBadge">CH ?</span>
+          </div>
+        </div>
+
+
+        <button class="ios-btn" onclick="exportChartCSV()"><i class="fas fa-file-csv"
+            style="color: #30d158;"></i></button>
+        <button class="ios-btn" onclick="refreshMap()"><i class="fas fa-sync-alt" style="color: #007aff;"></i></button>
+      </div>
+
+      <div class="user-profile" id="userProfile">
+        <!-- Hiển thị khi CHƯA đăng nhập -->
+        <div id="guestView" class="d-flex align-items-center">
+          <a href="#" class="profile-link" title="Đăng nhập" onclick="showLoginModal(); return false;">
+            <div class="avatar-circle">
+              <i class="fas fa-user-alt"></i>
+            </div>
+          </a>
+          <span class="user-status ms-2 text-muted small">Chưa đăng nhập</span>
+        </div>
+
+        <!-- Hiển thị khi ĐÃ đăng nhập -->
+        <div id="loggedInView" class="d-none align-items-center">
+          <a href="#" class="profile-link" title="Tài khoản" onclick="toggleUserMenu(); return false;">
+            <div class="avatar-circle d-flex align-items-center justify-content-center">
+              <span id="userInitials" style="font-weight: bold; font-size: 0.9rem;"></span>
+            </div>
+          </a>
+          <div class="user-info ms-2">
+            <div class="user-name small fw-bold" id="displayUserName"></div>
+            <div class="user-role small text-muted" id="displayUserRole"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Wrapper -->
+  <div class="content-wrapper d-flex">
+
+    <!-- Main Content Section -->
+    <main class="main-content flex-fill p-4">
+      <!-- Bản đồ chính (hiển thị mặc định) -->
+      <div id="mainDashboard" style="display: block;">
+        <!-- Bản đồ Leaflet - FULL SCREEN -->
+        <div id="map"></div> <!-- ĐÃ XÓA STYLE INLINE -->
+      </div>
+
+      <!----------------------------------------------------------------------------------------->
+
+
+      <!-- ========== TRANG BIỂU ĐỒ TỔNG HỢP ========== -->
+      <div id="chartView" style="display: none;">
+
+        <div class="d-flex justify-content-between align-items-center mb-3 px-2">
+          <div class="d-flex align-items-center">
+            <div class="status-pulse me-2"></div>
+            <h5 class="fw-bold text-dark m-0" style="letter-spacing: 0.5px;">
+              <span class="fw-light text-muted">Dữ liệu tổng hợp</span>
+            </h5>
+          </div>
+
+          <div
+            class="d-flex align-items-center bg-white shadow-sm rounded-3 px-3 py-2 border-top border-3 border-warning"
+            style="width: 100%; max-width: 980px; height: auto; flex-wrap: wrap;">
+
+            <div class="pe-4 border-end">
+              <div class="sun-track-mini-wrapper" style="width: 200px;">
+                <div class="sun-track-mini"></div>
+                <div id="sun-position-mini" class="sun-icon-mini"><i class="fas fa-sun text-warning"></i></div>
+                <div class="sun-time-label left" style="font-size: 0.7rem; bottom: -15px;">05:46</div>
+                <div class="sun-time-label right" style="font-size: 0.7rem; bottom: -15px;">17:53</div>
+              </div>
+            </div>
+
+            <div class="d-flex align-items-center bg-light px-2 py-2 rounded-2 shadow-sm ms-4"
+              style="border-left: 4px solid #dc3545; min-width: 300px;">
+              <div class="flex-grow-1">
+                <small class="text-uppercase fw-bold text-muted d-block mb-1"
+                  style="font-size: 0.5rem; padding-left: 5px;">S2-411</small>
+                <div class="d-flex align-items-center justify-content-around">
+                  <div class="text-center px-2">
+                    <small class="text-muted d-block" style="font-size: 0.5rem;">RED (W·m⁻²·nm⁻¹)</small>
+                    <span class="fw-bold text-danger" id="411-red" style="font-size: 1rem; line-height: 1;">0.0</span>
+                  </div>
+                  <div class="border-start" style="height: 20px;"></div>
+                  <div class="text-center px-2">
+                    <small class="text-muted d-block" style="font-size: 0.5rem;">NIR (W·m⁻²·nm⁻¹)</small>
+                    <span class="fw-bold text-primary" id="411-nir" style="font-size: 1rem; line-height: 1;">0.0</span>
+                  </div>
+                  <div class="border-start" style="height: 20px;"></div>
+                  <div class="text-center px-2">
+                    <small class="text-muted d-block" style="font-size: 0.5rem;">GÓC ĐO</small>
+                    <span class="fw-bold text-success" id="411-tilt" style="font-size: 1rem; line-height: 1;">0.0</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="d-flex align-items-center bg-light px-2 py-2 rounded-2 shadow-sm ms-3"
+              style="border-left: 4px solid #0d6efd; min-width: 300px;">
+              <div class="flex-grow-1">
+                <small class="text-uppercase fw-bold text-muted d-block mb-1"
+                  style="font-size: 0.5rem; padding-left: 5px;">S-412</small>
+                <div class="d-flex align-items-center justify-content-around">
+                  <div class="text-center px-2">
+                    <small class="text-muted d-block" style="font-size: 0.5rem;">RED (W·m⁻²·nm⁻¹)</small>
+                    <span class="fw-bold text-danger" id="412-red" style="font-size: 1rem; line-height: 1;">0.0</span>
+                  </div>
+                  <div class="border-start" style="height: 20px;"></div>
+                  <div class="text-center px-2">
+                    <small class="text-muted d-block" style="font-size: 0.5rem;">NIR (W·m⁻²·nm⁻¹)</small>
+                    <span class="fw-bold text-primary" id="412-nir" style="font-size: 1rem; line-height: 1;">0.0</span>
+                  </div>
+                  <div class="border-start" style="height: 20px;"></div>
+                  <div class="text-center px-2">
+                    <small class="text-muted d-block" style="font-size: 0.5rem;">GÓC ĐO</small>
+                    <span class="fw-bold text-success" id="412-tilt" style="font-size: 1rem; line-height: 1;">0.0</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button class="btn btn-sm btn-light text-secondary ms-auto rounded-circle shadow-sm"
+              onclick="showMonitoring()" style="width: 30px; height: 30px;">
+              <i class="fas fa-sync-alt" style="font-size: 0.7rem;"></i>
+            </button>
+          </div>
+        </div>
+
+        <div id="stationGrid"></div>
+      </div>
+
+      <style>
+        .station-custom-card {
+          background: #ffffff;
+          border-radius: 8px;
+          border: 1px solid #dee2e6;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+          height: auto;
+          display: flex;
+          flex-direction: column;
+          padding: 10px 12px;
+        }
+
+        .station-custom-card hr {
+          margin: 6px 0;
+          opacity: 0.15;
+        }
+
+        .sensor-title {
+          font-size: 0.7rem;
+          font-weight: 700;
+          color: #6c757d;
+          text-transform: uppercase;
+          margin-bottom: 2px;
+        }
+
+        .data-row {
+          display: flex;
+          justify-content: space-between;
+          font-size: 0.85rem;
+          margin-bottom: 2px;
+        }
+
+        .data-row strong {
+          font-size: 1rem;
+          color: #212529;
+        }
+
+        @media (min-width: 992px) {
+          .col-node {
+            width: 33.33%;
+            height: auto;
+          }
+        }
+      </style>
+      <!-- ========== KẾT THÚC TRANG BIỂU ĐỒ ========== -->
+
+      <!--TRANG BIEU DO TONG HOP-->
+      <!--TRANG BIEU DO TONG HOP-->
+      <!-- ========== TRANG BIỂU ĐỒ TỔNG 6 TRẠM ========== -->
+
+      <div id="allChartsView" style="display:none;">
+        <style>
+          .acv-topbar {
+            position: sticky; top: 0; z-index: 10;
+            background: #fff;
+            border-bottom: 0.5px solid #e2e8f0;
+            padding: 8px 16px;
+            display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+          }
+          .acv-title { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:500; color:#212529; }
+          .acv-title span { font-size:11px; color:#adb5bd; font-weight:400; }
+          .acv-controls { display:flex; align-items:center; gap:8px; }
+          .acv-seg { display:flex; border:0.5px solid #dee2e6; border-radius:8px; overflow:hidden; }
+          .acv-seg button { padding:5px 14px; font-size:12px; border:none; cursor:pointer; background:#fff; color:#6c757d; transition:all .15s; }
+          .acv-seg button.active { background:#185FA5; color:#E6F1FB; font-weight:500; }
+          .acv-seg button:not(.active):hover { background:#f8f9fa; }
+          .acv-icon-btn { width:32px; height:32px; border:0.5px solid #dee2e6; border-radius:8px; background:#fff; color:#6c757d; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:14px; transition:background .15s; }
+          .acv-icon-btn:hover { background:#f8f9fa; }
+          .acv-summary { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding:10px 16px 0; }
+          @media(max-width:700px){ .acv-summary { grid-template-columns:repeat(2,1fr); } }
+          .acv-sum { background:#fff; border:0.5px solid #e2e8f0; border-radius:10px; padding:10px 14px; display:flex; align-items:center; gap:10px; }
+          .acv-sum-icon { width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+          .acv-sum-label { font-size:10px; color:#adb5bd; text-transform:uppercase; letter-spacing:.3px; }
+          .acv-sum-val { font-size:18px; font-weight:500; line-height:1.1; }
+          .acv-sum-delta { font-size:10px; margin-top:2px; color:#adb5bd; }
+          .acv-charts { display:flex; flex-direction:column; gap:10px; padding:10px 16px 16px; }
+          .acv-card { background:#fff; border:0.5px solid #e2e8f0; border-radius:12px; overflow:hidden; }
+          .acv-card-hdr { padding:10px 16px 9px; display:flex; align-items:center; justify-content:space-between; border-bottom:0.5px solid #f0f2f5; }
+          .acv-card-hdr-left { display:flex; align-items:center; gap:10px; }
+          .acv-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+          .acv-card-name { font-size:13px; font-weight:500; color:#212529; }
+          .acv-card-unit { font-size:10px; color:#adb5bd; margin-top:1px; }
+          .acv-card-right { display:flex; align-items:center; gap:8px; }
+          .acv-badge-ok   { font-size:10px; padding:2px 8px; border-radius:20px; background:#EAF3DE; color:#3B6D11; }
+          .acv-badge-warn { font-size:10px; padding:2px 8px; border-radius:20px; background:#FAEEDA; color:#854F0B; }
+          .acv-range { font-size:10px; color:#adb5bd; }
+          .acv-chart-body { padding:4px 8px 8px; }
+        </style>
+      
+        <!-- Sticky top bar -->
+        <div class="acv-topbar">
+          <div class="acv-title">
+            <i class="fas fa-chart-line" style="color:#185FA5;font-size:15px;"></i>
+            Biểu đồ tổng hợp 6 trạm
+            <span id="acv-update-time">—</span>
+          </div>
+          <div class="acv-controls">
+            <div class="acv-seg">
+              <button onclick="acvSetRange('day')"   id="acv-btn-day">Hôm nay</button>
+              <button onclick="acvSetRange('week')"  id="acv-btn-week" class="active">Tuần</button>
+              <button onclick="acvSetRange('month')" id="acv-btn-month">Tháng</button>
+            </div>
+            <button class="acv-icon-btn" title="Làm mới" onclick="refreshAllChartsWithFilter()">
+              <i class="fas fa-sync-alt"></i>
+            </button>
+            <button class="acv-icon-btn" title="Đóng" onclick="closeAllChartsView()">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+      
+        <!-- Summary strip -->
+        <div class="acv-summary">
+          <div class="acv-sum">
+            <div class="acv-sum-icon" style="background:#E6F1FB;">
+              <i class="fas fa-thermometer-half" style="color:#185FA5;"></i>
+            </div>
+            <div>
+              <div class="acv-sum-label">Nhiệt độ TB</div>
+              <div class="acv-sum-val" style="color:#185FA5;" id="acv-s-temp">—</div>
+              <div class="acv-sum-delta">°C tất cả trạm</div>
+            </div>
+          </div>
+          <div class="acv-sum">
+            <div class="acv-sum-icon" style="background:#E1F5EE;">
+              <i class="fas fa-water" style="color:#0F6E56;"></i>
+            </div>
+            <div>
+              <div class="acv-sum-label">VWC trung bình</div>
+              <div class="acv-sum-val" style="color:#0F6E56;" id="acv-s-vwc">—</div>
+              <div class="acv-sum-delta">% tất cả trạm</div>
+            </div>
+          </div>
+          <div class="acv-sum">
+            <div class="acv-sum-icon" style="background:#FAEEDA;">
+              <i class="fas fa-flask" style="color:#854F0B;"></i>
+            </div>
+            <div>
+              <div class="acv-sum-label">pH trung bình</div>
+              <div class="acv-sum-val" style="color:#BA7517;" id="acv-s-ph">—</div>
+              <div class="acv-sum-delta">tất cả trạm</div>
+            </div>
+          </div>
+          <div class="acv-sum">
+            <div class="acv-sum-icon" style="background:#EEEDFE;">
+              <i class="fas fa-bolt" style="color:#534AB7;"></i>
+            </div>
+            <div>
+              <div class="acv-sum-label">EC trung bình</div>
+              <div class="acv-sum-val" style="color:#534AB7;" id="acv-s-ec">—</div>
+              <div class="acv-sum-delta">dS/m tất cả trạm</div>
+            </div>
+          </div>
+        </div>
+      
+        <!-- 4 biểu đồ xếp dọc -->
+        <div class="acv-charts">
+      
+          <div class="acv-card">
+            <div class="acv-card-hdr">
+              <div class="acv-card-hdr-left">
+                <div class="acv-dot" style="background:#185FA5;"></div>
+                <div>
+                  <div class="acv-card-name">Nhiệt độ đất</div>
+                  <div class="acv-card-unit">°C · Cảm biến TEROS 12</div>
+                </div>
+              </div>
+              <div class="acv-card-right">
+                <span class="acv-badge-ok" id="acv-badge-temp">Đang tải...</span>
+                <span class="acv-range">ngưỡng 15–40°C</span>
+              </div>
+            </div>
+            <div class="acv-chart-body">
+              <div id="chartTempAll" style="width:100%;height:260px;"></div>
+            </div>
+          </div>
+      
+          <div class="acv-card">
+            <div class="acv-card-hdr">
+              <div class="acv-card-hdr-left">
+                <div class="acv-dot" style="background:#0F6E56;"></div>
+                <div>
+                  <div class="acv-card-name">Hàm lượng nước thể tích (VWC)</div>
+                  <div class="acv-card-unit">% · Cảm biến TEROS 12</div>
+                </div>
+              </div>
+              <div class="acv-card-right">
+                <span class="acv-badge-ok" id="acv-badge-vwc">Đang tải...</span>
+                <span class="acv-range">ngưỡng 20–80%</span>
+              </div>
+            </div>
+            <div class="acv-chart-body">
+              <div id="chartHumAll" style="width:100%;height:260px;"></div>
+            </div>
+          </div>
+      
+          <div class="acv-card">
+            <div class="acv-card-hdr">
+              <div class="acv-card-hdr-left">
+                <div class="acv-dot" style="background:#BA7517;"></div>
+                <div>
+                  <div class="acv-card-name">pH đất</div>
+                  <div class="acv-card-unit">ES PH SOIL 01</div>
+                </div>
+              </div>
+              <div class="acv-card-right">
+                <span class="acv-badge-ok" id="acv-badge-ph">Đang tải...</span>
+                <span class="acv-range">ngưỡng 5.5–8.5</span>
+              </div>
+            </div>
+            <div class="acv-chart-body">
+              <div id="chartPhAll" style="width:100%;height:260px;"></div>
+            </div>
+          </div>
+      
+          <div class="acv-card">
+            <div class="acv-card-hdr">
+              <div class="acv-card-hdr-left">
+                <div class="acv-dot" style="background:#534AB7;"></div>
+                <div>
+                  <div class="acv-card-name">Độ dẫn điện (EC)</div>
+                  <div class="acv-card-unit">dS/m · Cảm biến TEROS 12</div>
+                </div>
+              </div>
+              <div class="acv-card-right">
+                <span class="acv-badge-ok" id="acv-badge-ec">Đang tải...</span>
+                <span class="acv-range">ngưỡng 0–5 dS/m</span>
+              </div>
+            </div>
+            <div class="acv-chart-body">
+              <div id="chartEcAll" style="width:100%;height:260px;"></div>
+            </div>
+          </div>
+      
+        </div>
+      </div>
+      
+
+      <!--TRANG BIEU DO TONG HOP-->
+
+      <!-- ========== TRANG CÀI ĐẶT ========== -->
+      <div id="settingsView" style="display:none;">
+        <style>
+          #settingsView { background:#f0f2f5; }
+          .sv-wrap { display:grid; grid-template-columns:220px 1fr; min-height:calc(100vh - 90px); }
+          .sv-sidebar { background:#fff; border-right:0.5px solid #e2e8f0; display:flex; flex-direction:column; padding:0; }
+          .sv-sidebar-hdr { padding:12px 16px 10px; border-bottom:0.5px solid #e2e8f0; }
+          .sv-sidebar-title { font-size:13px; font-weight:500; color:#212529; display:flex; align-items:center; gap:7px; }
+          .sv-sidebar-sub { font-size:10px; color:#adb5bd; margin-top:2px; }
+          .sv-nav-section { font-size:9px; color:#adb5bd; text-transform:uppercase; letter-spacing:.5px; padding:10px 16px 4px; margin-top:4px; }
+          .sv-nav-item { display:flex; align-items:center; gap:10px; padding:8px 16px; cursor:pointer; border-left:3px solid transparent; color:#6c757d; font-size:12px; transition:all .15s; text-decoration:none; }
+          .sv-nav-item:hover { background:#f8f9fa; color:#212529; }
+          .sv-nav-item.active { background:#EAF3DE; color:#3B6D11; border-left-color:#3B6D11; font-weight:500; }
+          .sv-nav-item i { width:16px; text-align:center; font-size:13px; flex-shrink:0; }
+          .sv-sidebar-footer { margin-top:auto; padding:12px 16px; border-top:0.5px solid #e2e8f0; }
+          .sv-save-btn { width:100%; padding:8px; border:none; border-radius:8px; background:#185FA5; color:#E6F1FB; font-size:12px; font-weight:500; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; }
+          .sv-save-btn:hover { background:#0C447C; }
+          .sv-content { padding:16px; overflow-y:auto; }
+          .sv-section-title { font-size:13px; font-weight:500; color:#212529; display:flex; align-items:center; gap:8px; margin-bottom:3px; }
+          .sv-section-desc { font-size:11px; color:#adb5bd; margin-bottom:12px; }
+          .sv-field-group { background:#fff; border:0.5px solid #e2e8f0; border-radius:10px; overflow:hidden; margin-bottom:14px; }
+          .sv-field-row { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:0.5px solid #f0f2f5; gap:12px; }
+          .sv-field-row:last-child { border-bottom:none; }
+          .sv-field-label { font-size:12px; color:#212529; }
+          .sv-field-sub { font-size:10px; color:#adb5bd; margin-top:1px; }
+          .sv-field-control { flex-shrink:0; }
+          .sv-field-control input, .sv-field-control select { border:0.5px solid #dee2e6; border-radius:6px; padding:5px 10px; font-size:12px; background:#f8f9fa; color:#212529; outline:none; }
+          .sv-field-control input:focus, .sv-field-control select:focus { border-color:#185FA5; background:#fff; }
+          .sv-thresh-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px; }
+          @media(max-width:900px){ .sv-thresh-grid { grid-template-columns:repeat(2,1fr); } }
+          .sv-thresh-card { background:#fff; border:0.5px solid #e2e8f0; border-radius:10px; padding:10px 12px; }
+          .sv-thresh-top { display:flex; align-items:center; gap:7px; margin-bottom:8px; }
+          .sv-thresh-icon { width:28px; height:28px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; }
+          .sv-thresh-name { font-size:11px; font-weight:500; color:#212529; }
+          .sv-thresh-unit { font-size:10px; color:#adb5bd; }
+          .sv-thresh-inputs { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+          .sv-thresh-inp-wrap { display:flex; flex-direction:column; gap:2px; }
+          .sv-thresh-inp-label { font-size:9px; color:#adb5bd; text-transform:uppercase; letter-spacing:.3px; }
+          .sv-thresh-inp-wrap input { width:100%; border:0.5px solid #dee2e6; border-radius:6px; padding:4px 8px; font-size:12px; background:#f8f9fa; color:#212529; }
+          .sv-pane { display:none; }
+          .sv-pane.active { display:block; }
+          .sv-table { width:100%; border-collapse:collapse; font-size:12px; }
+          .sv-table th { padding:8px 12px; background:#f8f9fa; color:#6c757d; font-weight:500; text-align:left; border-bottom:0.5px solid #e2e8f0; font-size:11px; text-transform:uppercase; letter-spacing:.3px; }
+          .sv-table td { padding:9px 12px; border-bottom:0.5px solid #f0f2f5; color:#212529; }
+          .sv-table tr:last-child td { border-bottom:none; }
+          .sv-table-wrap { background:#fff; border:0.5px solid #e2e8f0; border-radius:10px; overflow:hidden; margin-bottom:14px; }
+        </style>
+        
+        <div class="sv-wrap">
+        
+          <!-- Sidebar -->
+          <div class="sv-sidebar">
+            <div class="sv-sidebar-hdr">
+              <div class="sv-sidebar-title">
+                <i class="fas fa-cog" style="color:#3B6D11;font-size:13px;"></i>
+                Cài đặt hệ thống
+              </div>
+              <div class="sv-sidebar-sub">MIA Gateway v2.0</div>
+            </div>
+        
+            <div class="sv-nav-section">Hệ thống</div>
+            <a class="sv-nav-item active" onclick="svShow('general',this)">
+              <i class="fas fa-sliders-h"></i> Cài đặt chung
+            </a>
+            <a class="sv-nav-item" onclick="svShow('stations',this)">
+              <i class="fas fa-microchip"></i> Trạm & cảm biến
+            </a>
+            <a class="sv-nav-item" onclick="svShow('thresholds',this)">
+              <i class="fas fa-bell"></i> Ngưỡng cảnh báo
+            </a>
+        
+            <div class="sv-nav-section">Kết nối</div>
+            <a class="sv-nav-item" onclick="svShow('weather',this)">
+              <i class="fas fa-cloud-sun"></i> Thời tiết
+            </a>
+            <a class="sv-nav-item" onclick="svShow('push',this)">
+              <i class="fas fa-share-alt"></i> Push dữ liệu
+            </a>
+        
+            <div class="sv-nav-section">Tài khoản</div>
+            <a class="sv-nav-item" onclick="svShow('accounts',this)">
+              <i class="fas fa-users-cog"></i> Quản lý tài khoản
+            </a>
+        
+            <div class="sv-nav-section">Khác</div>
+            <a class="sv-nav-item" onclick="svShow('backup',this)">
+              <i class="fas fa-archive"></i> Sao lưu & khôi phục
+            </a>
+            <a class="sv-nav-item" onclick="svShow('about',this)">
+              <i class="fas fa-info-circle"></i> Thông tin hệ thống
+            </a>
+        
+            <div class="sv-sidebar-footer">
+              <button class="sv-save-btn" id="saveAllSettingsBtn">
+                <i class="fas fa-save"></i> Lưu tất cả thay đổi
+              </button>
+            </div>
+          </div>
+        
+          <!-- Content -->
+          <div class="sv-content">
+        
+            <!-- Pane: Cài đặt chung -->
+            <div class="sv-pane active" id="sv-pane-general">
+              <div class="sv-section-title"><i class="fas fa-sliders-h" style="color:#3B6D11;"></i> Cài đặt chung</div>
+              <div class="sv-section-desc">Thông tin cơ bản và hành vi của hệ thống</div>
+              <div class="sv-field-group">
+                <div class="sv-field-row">
+                  <div><div class="sv-field-label">Tên hệ thống</div><div class="sv-field-sub">Hiển thị ở header và footer</div></div>
+                  <div class="sv-field-control"><input type="text" id="systemName" value="RRIV - Hệ thống giám sát trạm" style="width:240px;"></div>
+                </div>
+                <div class="sv-field-row">
+                  <div><div class="sv-field-label">Ngôn ngữ</div><div class="sv-field-sub">Ngôn ngữ hiển thị giao diện</div></div>
+                  <div class="sv-field-control"><select id="language" style="width:160px;"><option value="vi">Tiếng Việt</option><option value="en">English</option></select></div>
+                </div>
+                <div class="sv-field-row">
+                  <div><div class="sv-field-label">Múi giờ</div><div class="sv-field-sub">Ảnh hưởng tới timestamp dữ liệu</div></div>
+                  <div class="sv-field-control"><select id="timezone" style="width:210px;"><option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh (GMT+7)</option><option value="Asia/Bangkok">Asia/Bangkok</option><option value="UTC">UTC</option></select></div>
+                </div>
+                <div class="sv-field-row">
+                  <div><div class="sv-field-label">Tự động làm mới dữ liệu</div><div class="sv-field-sub">Khoảng thời gian gọi API gateway</div></div>
+                  <div class="sv-field-control" style="display:flex;align-items:center;gap:6px;"><input type="number" id="refreshIntervalGlobal" value="30" min="5" step="5" style="width:70px;text-align:center;"><span style="font-size:11px;color:#adb5bd;">giây</span></div>
+                </div>
+              </div>
+            </div>
+        
+            <!-- Pane: Trạm & cảm biến -->
+            <div class="sv-pane" id="sv-pane-stations">
+              <div class="sv-section-title"><i class="fas fa-microchip" style="color:#185FA5;"></i> Trạm & cảm biến</div>
+              <div class="sv-section-desc">Tên, tọa độ các trạm đang kết nối</div>
+              <div id="stationsSettingsList"></div>
+            </div>
+        
+            <!-- Pane: Ngưỡng cảnh báo -->
+            <div class="sv-pane" id="sv-pane-thresholds">
+              <div class="sv-section-title"><i class="fas fa-bell" style="color:#854F0B;"></i> Ngưỡng cảnh báo</div>
+              <div class="sv-section-desc">Giá trị min/max để kích hoạt cảnh báo trên từng trạm</div>
+              <div class="sv-thresh-grid">
+                <div class="sv-thresh-card">
+                  <div class="sv-thresh-top">
+                    <div class="sv-thresh-icon" style="background:#FAEEDA;"><i class="fas fa-flask" style="color:#854F0B;"></i></div>
+                    <div><div class="sv-thresh-name">pH đất</div><div class="sv-thresh-unit">ES PH SOIL 01</div></div>
+                  </div>
+                  <div class="sv-thresh-inputs">
+                    <div class="sv-thresh-inp-wrap"><span class="sv-thresh-inp-label">Min</span><input type="number" id="phMin" step="0.1" value="5.5"></div>
+                    <div class="sv-thresh-inp-wrap"><span class="sv-thresh-inp-label">Max</span><input type="number" id="phMax" step="0.1" value="8.5"></div>
+                  </div>
+                </div>
+                <div class="sv-thresh-card">
+                  <div class="sv-thresh-top">
+                    <div class="sv-thresh-icon" style="background:#E1F5EE;"><i class="fas fa-water" style="color:#0F6E56;"></i></div>
+                    <div><div class="sv-thresh-name">VWC (%)</div><div class="sv-thresh-unit">TEROS 12</div></div>
+                  </div>
+                  <div class="sv-thresh-inputs">
+                    <div class="sv-thresh-inp-wrap"><span class="sv-thresh-inp-label">Min</span><input type="number" id="humMin" step="1" value="20"></div>
+                    <div class="sv-thresh-inp-wrap"><span class="sv-thresh-inp-label">Max</span><input type="number" id="humMax" step="1" value="80"></div>
+                  </div>
+                </div>
+                <div class="sv-thresh-card">
+                  <div class="sv-thresh-top">
+                    <div class="sv-thresh-icon" style="background:#E6F1FB;"><i class="fas fa-thermometer-half" style="color:#185FA5;"></i></div>
+                    <div><div class="sv-thresh-name">Nhiệt độ (°C)</div><div class="sv-thresh-unit">TEROS 12</div></div>
+                  </div>
+                  <div class="sv-thresh-inputs">
+                    <div class="sv-thresh-inp-wrap"><span class="sv-thresh-inp-label">Min</span><input type="number" id="tempMin" step="0.1" value="15"></div>
+                    <div class="sv-thresh-inp-wrap"><span class="sv-thresh-inp-label">Max</span><input type="number" id="tempMax" step="0.1" value="40"></div>
+                  </div>
+                </div>
+                <div class="sv-thresh-card">
+                  <div class="sv-thresh-top">
+                    <div class="sv-thresh-icon" style="background:#EEEDFE;"><i class="fas fa-bolt" style="color:#534AB7;"></i></div>
+                    <div><div class="sv-thresh-name">EC (dS/m)</div><div class="sv-thresh-unit">TEROS 12</div></div>
+                  </div>
+                  <div class="sv-thresh-inputs">
+                    <div class="sv-thresh-inp-wrap"><span class="sv-thresh-inp-label">Min</span><input type="number" id="ecMin" step="0.1" value="4"></div>
+                    <div class="sv-thresh-inp-wrap"><span class="sv-thresh-inp-label">Max</span><input type="number" id="ecMax" step="0.1" value="19"></div>
+                  </div>
+                </div>
+                <div class="sv-thresh-card">
+                  <div class="sv-thresh-top">
+                    <div class="sv-thresh-icon" style="background:#FCEBEB;"><i class="fas fa-battery-quarter" style="color:#A32D2D;"></i></div>
+                    <div><div class="sv-thresh-name">Cảnh báo pin</div><div class="sv-thresh-unit">Tất cả trạm</div></div>
+                  </div>
+                  <div class="sv-thresh-inputs">
+                    <div class="sv-thresh-inp-wrap" style="grid-column:span 2;"><span class="sv-thresh-inp-label">Dưới mức (%)</span><input type="number" id="batteryAlert" step="1" value="20" style="width:100%;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+        
+            <!-- Pane: Thời tiết -->
+            <div class="sv-pane" id="sv-pane-weather">
+              <div class="sv-section-title"><i class="fas fa-cloud-sun" style="color:#0F6E56;"></i> Cấu hình thời tiết</div>
+              <div class="sv-section-desc">OpenWeatherMap API cho dự báo thời tiết nông nghiệp</div>
+              <div class="sv-field-group">
+                <div class="sv-field-row">
+                  <div><div class="sv-field-label">API Key</div><div class="sv-field-sub">Lấy miễn phí tại openweathermap.org</div></div>
+                  <div class="sv-field-control"><input type="text" id="weatherApiKey" value="90c9425ec2db6451d70d2e49a1af5adc" style="width:260px;"></div>
+                </div>
+                <div class="sv-field-row">
+                  <div><div class="sv-field-label">Đơn vị nhiệt độ</div></div>
+                  <div class="sv-field-control"><select id="weatherUnits" style="width:120px;"><option value="metric">°C (Metric)</option><option value="imperial">°F (Imperial)</option></select></div>
+                </div>
+                <div class="sv-field-row">
+                  <div><div class="sv-field-label">Tần suất cập nhật</div><div class="sv-field-sub">Gọi API thời tiết mỗi N phút</div></div>
+                  <div class="sv-field-control" style="display:flex;align-items:center;gap:6px;"><input type="number" id="weatherInterval" value="30" min="10" step="5" style="width:70px;text-align:center;"><span style="font-size:11px;color:#adb5bd;">phút</span></div>
+                </div>
+                <div class="sv-field-row">
+                  <div><div class="sv-field-label">Kiểm tra kết nối</div><div class="sv-field-sub">Thử gọi API với key hiện tại</div></div>
+                  <div class="sv-field-control"><button id="testWeatherApiBtn" style="padding:5px 14px;border:0.5px solid #dee2e6;border-radius:6px;background:#f8f9fa;color:#212529;font-size:12px;cursor:pointer;"><i class="fas fa-plug me-1"></i> Test API</button></div>
+                </div>
+              </div>
+            </div>
+        
+            <!-- Pane: Push dữ liệu -->
+            <div class="sv-pane" id="sv-pane-push">
+              <div class="sv-section-title"><i class="fas fa-share-alt" style="color:#534AB7;"></i> Push dữ liệu</div>
+              <div class="sv-section-desc">Gateway tự động gửi dữ liệu cảm biến đến server theo chu kỳ</div>
+              <div class="sv-field-group">
+                <div class="sv-field-row">
+                  <div><div class="sv-field-label">Server đích (URL)</div><div class="sv-field-sub">Endpoint nhận POST/GET từ gateway</div></div>
+                  <div class="sv-field-control"><input type="url" id="pushServerUrl" placeholder="https://example.com/api/data" style="width:260px;"></div>
+                </div>
+                <div class="sv-field-row">
+                  <div><div class="sv-field-label">Phương thức HTTP</div></div>
+                  <div class="sv-field-control"><select id="pushMethod" style="width:120px;"><option value="POST">POST</option><option value="GET">GET</option></select></div>
+                </div>
+                <div class="sv-field-row">
+                  <div><div class="sv-field-label">Khoảng thời gian gửi</div></div>
+                  <div class="sv-field-control" style="display:flex;align-items:center;gap:6px;"><input type="number" id="pushInterval" value="30" min="5" step="5" style="width:70px;text-align:center;"><span style="font-size:11px;color:#adb5bd;">giây</span></div>
+                </div>
+                <div class="sv-field-row">
+                  <div><div class="sv-field-label">Headers (JSON)</div><div class="sv-field-sub">Authorization, Content-Type, ...</div></div>
+                  <div class="sv-field-control"><textarea id="pushHeaders" rows="2" style="width:260px;border:0.5px solid #dee2e6;border-radius:6px;padding:5px 8px;font-size:11px;font-family:monospace;background:#f8f9fa;" placeholder='{"Authorization":"Bearer token"}'></textarea></div>
+                </div>
+                <div class="sv-field-row">
+                  <div><div class="sv-field-label">Gửi thử ngay</div><div class="sv-field-sub">Kiểm tra kết nối với server</div></div>
+                  <div class="sv-field-control" style="display:flex;gap:8px;">
+                    <button id="testPushNowBtn" style="padding:5px 14px;border:0.5px solid #dee2e6;border-radius:6px;background:#f8f9fa;color:#212529;font-size:12px;cursor:pointer;"><i class="fas fa-paper-plane me-1"></i> Gửi thử</button>
+                    <button id="savePushConfigBtn" style="padding:5px 14px;border:none;border-radius:6px;background:#185FA5;color:#fff;font-size:12px;cursor:pointer;"><i class="fas fa-save me-1"></i> Lưu</button>
+                  </div>
+                </div>
+              </div>
+              <div id="pushConfigMessage"></div>
+            </div>
+        
+            <!-- Pane: Quản lý tài khoản -->
+            <div class="sv-pane" id="sv-pane-accounts">
+              <div class="sv-section-title"><i class="fas fa-users-cog" style="color:#0F6E56;"></i> Quản lý tài khoản</div>
+              <div class="sv-section-desc">Tạo tài khoản, phân quyền truy cập từng trạm</div>
+              <div style="display:flex;gap:6px;margin-bottom:14px;">
+                <button onclick="svAccTab('create')" id="sv-acc-btn-create" style="padding:5px 14px;border:0.5px solid #185FA5;border-radius:20px;background:#185FA5;color:#E6F1FB;font-size:12px;cursor:pointer;">Tạo tài khoản</button>
+                <button onclick="svAccTab('list')"   id="sv-acc-btn-list"   style="padding:5px 14px;border:0.5px solid #dee2e6;border-radius:20px;background:#f8f9fa;color:#6c757d;font-size:12px;cursor:pointer;">Danh sách</button>
+                <button onclick="svAccTab('perm')"   id="sv-acc-btn-perm"   style="padding:5px 14px;border:0.5px solid #dee2e6;border-radius:20px;background:#f8f9fa;color:#6c757d;font-size:12px;cursor:pointer;">Phân quyền</button>
+              </div>
+              <div id="sv-acc-create">
+                <div class="sv-field-group">
+                  <div class="sv-field-row">
+                    <div><div class="sv-field-label">Tên đăng nhập</div></div>
+                    <div class="sv-field-control"><input type="text" id="newUsername" placeholder="vd: nguyenvanA" style="width:200px;"></div>
+                  </div>
+                  <div class="sv-field-row">
+                    <div><div class="sv-field-label">Mật khẩu</div></div>
+                    <div class="sv-field-control"><input type="password" id="newPassword" placeholder="••••••" style="width:200px;"></div>
+                  </div>
+                  <div class="sv-field-row">
+                    <div><div class="sv-field-label">Họ tên</div></div>
+                    <div class="sv-field-control"><input type="text" id="newFullname" placeholder="Nguyễn Văn A" style="width:200px;"></div>
+                  </div>
+                  <div class="sv-field-row">
+                    <div><div class="sv-field-label">Email</div></div>
+                    <div class="sv-field-control"><input type="email" id="newEmail" placeholder="example@domain.com" style="width:200px;"></div>
+                  </div>
+                  <div class="sv-field-row">
+                    <div><div class="sv-field-label">Vai trò</div></div>
+                    <div class="sv-field-control"><select id="newRole" style="width:160px;"><option value="viewer">Người xem</option><option value="operator">Vận hành</option><option value="admin">Quản trị viên</option></select></div>
+                  </div>
+                  <div class="sv-field-row" style="align-items:flex-start;">
+                    <div><div class="sv-field-label">Trạm được phép</div></div>
+                    <div class="sv-field-control">
+                      <label style="font-size:11px;display:flex;align-items:center;gap:4px;margin-bottom:6px;"><input type="checkbox" id="selectAllStationsSettings"> Tất cả trạm</label>
+                      <div id="stationsChecklistSettings" style="display:flex;flex-wrap:wrap;gap:6px;max-width:300px;"></div>
+                    </div>
+                  </div>
+                </div>
+                <form id="createAccountFormSettings" style="display:none;"></form>
+                <button onclick="document.getElementById('createAccountFormSettings').dispatchEvent(new Event('submit'))" style="padding:6px 20px;border:none;border-radius:6px;background:#185FA5;color:#fff;font-size:12px;cursor:pointer;"><i class="fas fa-save me-1"></i> Tạo tài khoản</button>
+              </div>
+              <div id="sv-acc-list" style="display:none;">
+                <div class="sv-table-wrap">
+                  <table class="sv-table">
+                    <thead><tr><th>Username</th><th>Họ tên</th><th>Vai trò</th><th>Thao tác</th></tr></thead>
+                    <tbody id="accountsTableBodySettings"><tr><td colspan="4" style="text-align:center;color:#adb5bd;padding:20px;">Chưa có dữ liệu</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+              <div id="sv-acc-perm" style="display:none;">
+                <div class="sv-field-group" style="margin-bottom:10px;">
+                  <div class="sv-field-row">
+                    <div><div class="sv-field-label">Chọn tài khoản</div></div>
+                    <div class="sv-field-control"><select id="selectAccountPerm" style="width:200px;" onchange="loadAccountPermissionsSettings()"><option value="">-- Chọn --</option></select></div>
+                  </div>
+                </div>
+                <div id="permDetails" style="background:#fff;border:0.5px solid #e2e8f0;border-radius:10px;padding:14px;min-height:60px;color:#adb5bd;font-size:12px;">Vui lòng chọn tài khoản</div>
+                <button id="savePermBtn" style="margin-top:10px;padding:6px 20px;border:none;border-radius:6px;background:#3B6D11;color:#fff;font-size:12px;cursor:pointer;"><i class="fas fa-save me-1"></i> Lưu phân quyền</button>
+              </div>
+            </div>
+        
+            <!-- Pane: Sao lưu -->
+            <div class="sv-pane" id="sv-pane-backup">
+              <div class="sv-section-title"><i class="fas fa-archive" style="color:#6c757d;"></i> Sao lưu & khôi phục</div>
+              <div class="sv-section-desc">Xuất/nhập toàn bộ cài đặt hệ thống dưới dạng JSON</div>
+              <div class="sv-field-group">
+                <div class="sv-field-row">
+                  <div><div class="sv-field-label">Xuất cấu hình</div><div class="sv-field-sub">Tải file JSON về máy</div></div>
+                  <div class="sv-field-control"><button id="exportSettingsBtn" style="padding:5px 14px;border:0.5px solid #dee2e6;border-radius:6px;background:#f8f9fa;color:#212529;font-size:12px;cursor:pointer;"><i class="fas fa-download me-1"></i> Xuất JSON</button></div>
+                </div>
+                <div class="sv-field-row">
+                  <div><div class="sv-field-label">Nhập cấu hình</div><div class="sv-field-sub">Khôi phục từ file JSON đã xuất</div></div>
+                  <div class="sv-field-control" style="display:flex;gap:8px;align-items:center;">
+                    <input type="file" id="importSettingsFile" accept=".json" style="width:180px;font-size:11px;">
+                    <button id="importSettingsBtn" style="padding:5px 14px;border:0.5px solid #dee2e6;border-radius:6px;background:#f8f9fa;color:#212529;font-size:12px;cursor:pointer;">Khôi phục</button>
+                  </div>
+                </div>
+                <div class="sv-field-row">
+                  <div><div class="sv-field-label">Đặt lại mặc định</div><div class="sv-field-sub" style="color:#dc3545;">Xóa toàn bộ cài đặt, không thể hoàn tác</div></div>
+                  <div class="sv-field-control"><button id="resetToDefaultBtn" style="padding:5px 14px;border:0.5px solid #dc3545;border-radius:6px;background:#fff;color:#dc3545;font-size:12px;cursor:pointer;"><i class="fas fa-trash me-1"></i> Đặt lại</button></div>
+                </div>
+              </div>
+            </div>
+        
+            <!-- Pane: Thông tin hệ thống -->
+            <div class="sv-pane" id="sv-pane-about">
+              <div class="sv-section-title"><i class="fas fa-info-circle" style="color:#185FA5;"></i> Thông tin hệ thống</div>
+              <div class="sv-section-desc">Thông tin phiên bản và liên hệ hỗ trợ</div>
+              <div class="sv-field-group">
+                <div class="sv-field-row"><div class="sv-field-label">Phiên bản</div><div style="font-size:12px;color:#3B6D11;font-weight:500;">RRIV v2.0.0 (04/2026)</div></div>
+                <div class="sv-field-row"><div class="sv-field-label">Trình duyệt</div><div style="font-size:12px;color:#6c757d;" id="browserInfo">—</div></div>
+                <div class="sv-field-row"><div class="sv-field-label">Độ phân giải</div><div style="font-size:12px;color:#6c757d;" id="screenRes">—</div></div>
+                <div class="sv-field-row"><div class="sv-field-label">Kết nối</div><div><span id="onlineStatus" style="font-size:11px;padding:2px 10px;border-radius:20px;background:#EAF3DE;color:#3B6D11;">Online</span></div></div>
+                <div class="sv-field-row"><div class="sv-field-label">Hỗ trợ</div><div style="font-size:12px;color:#6c757d;">minhanh.science@gmail.com · 0969.406.361</div></div>
+              </div>
+            </div>
+        
+          </div>
+        </div>
+        
+        <script>
+        function svShow(pane, el) {
+          document.querySelectorAll('#settingsView .sv-pane').forEach(p => p.classList.remove('active'));
+          document.querySelectorAll('#settingsView .sv-nav-item').forEach(n => n.classList.remove('active'));
+          const p = document.getElementById('sv-pane-' + pane);
+          if (p) p.classList.add('active');
+          if (el) el.classList.add('active');
+          if (pane === 'stations')   { if(typeof renderStationsSettingsList==='function') renderStationsSettingsList(); }
+          if (pane === 'thresholds') { if(typeof loadSettingsToForm==='function') loadSettingsToForm(); }
+          if (pane === 'accounts')   {
+            if(typeof loadAccountsTableSettings==='function') loadAccountsTableSettings();
+            if(typeof populateAccountSelectSettings==='function') populateAccountSelectSettings();
+            if(typeof populateStationsChecklistSettings==='function') populateStationsChecklistSettings();
+          }
+        }
+        function svAccTab(tab) {
+          ['create','list','perm'].forEach(t => {
+            const el  = document.getElementById('sv-acc-' + t);
+            const btn = document.getElementById('sv-acc-btn-' + t);
+            if (el) el.style.display = t === tab ? 'block' : 'none';
+            if (btn) {
+              btn.style.background   = t === tab ? '#185FA5' : '#f8f9fa';
+              btn.style.color        = t === tab ? '#E6F1FB' : '#6c757d';
+              btn.style.borderColor  = t === tab ? '#185FA5' : '#dee2e6';
+            }
+          });
+          if (tab === 'list' && typeof loadAccountsTableSettings==='function') loadAccountsTableSettings();
+          if (tab === 'perm' && typeof populateAccountSelectSettings==='function') populateAccountSelectSettings();
+        }
+        </script>
+        </div>
+        
+
+
+      <!--TRANG NDVI---------------------------------------------------------------------------------------------->
+
+      <div id="ndviView" style="display:none;">
+        <style>
+          .ndvi-page { padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+          .ndvi-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+          @media (max-width: 900px) { .ndvi-metrics { grid-template-columns: repeat(2, 1fr); } }
+          @media (max-width: 480px) { .ndvi-metrics { grid-template-columns: 1fr; } }
+          .ndvi-mcard { background: #fff; border: 1px solid #e9ecef; border-radius: 10px; padding: 12px 14px; position: relative; overflow: hidden; }
+          .ndvi-mcard .accent { position: absolute; top: 0; left: 0; width: 4px; height: 100%; border-radius: 10px 0 0 10px; }
+          .ndvi-mcard .mlabel { font-size: 10px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; padding-left: 8px; }
+          .ndvi-mcard .mval { font-size: 22px; font-weight: 600; padding-left: 8px; line-height: 1.1; }
+          .ndvi-mcard .msub { font-size: 11px; color: #6c757d; padding-left: 8px; margin-top: 4px; }
+          .ndvi-row2 { display: grid; grid-template-columns: 1fr 1fr 280px; gap: 10px; }
+          @media (max-width: 900px) { .ndvi-row2 { grid-template-columns: 1fr; } }
+          .ndvi-card { background: #fff; border: 1px solid #e9ecef; border-radius: 10px; padding: 12px 14px; }
+          .ndvi-card-title { font-size: 12px; font-weight: 600; color: #495057; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+          .spec-label { font-size: 10px; color: #6c757d; display: flex; justify-content: space-between; margin-bottom: 3px; }
+          .spec-bar { height: 9px; border-radius: 4px; margin-bottom: 8px; }
+          .ndvi-row3 { display: grid; grid-template-columns: 1fr 260px; gap: 10px; }
+          @media (max-width: 900px) { .ndvi-row3 { grid-template-columns: 1fr; } }
+          .ndvi-chart-btns { display: flex; gap: 4px; }
+          .ndvi-btn { font-size: 11px; padding: 3px 10px; border-radius: 20px; border: 1px solid #dee2e6; background: #f8f9fa; color: #6c757d; cursor: pointer; transition: all 0.15s; }
+          .ndvi-btn.active { background: #e8f5e0; color: #2d6a0f; border-color: #8bc34a; font-weight: 600; }
+          .ndvi-rec-item { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f0f0f0; }
+          .ndvi-rec-item:last-child { border-bottom: none; }
+          .ndvi-rec-icon { width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+          .ndvi-hist-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid #f5f5f5; font-size: 12px; }
+          .ndvi-hist-row:last-child { border-bottom: none; }
+          .ndvi-gauge { height: 14px; border-radius: 6px; position: relative; margin: 8px 0 4px; background: linear-gradient(to right, #dc3545 0%, #fd7e14 25%, #8bc34a 55%, #2d6a0f 100%); }
+          .ndvi-gauge-needle { position: absolute; top: -3px; width: 4px; height: 20px; background: #333; border-radius: 2px; transform: translateX(-50%); }
+          #ndvi-loading { display: none; text-align: center; padding: 30px; color: #6c757d; }
+        </style>
+
+        <div class="ndvi-page">
+
+          <!-- Row 1: 4 metric cards -->
+          <div class="ndvi-metrics">
+
+            <div class="ndvi-mcard">
+              <div class="accent" style="background:#4caf50;"></div>
+              <div class="mlabel">NDVI trung bình</div>
+              <div class="mval" id="avg-ndvi" style="color:#2d6a0f;">0.0000</div>
+              <div class="ndvi-gauge">
+                <div class="ndvi-gauge-needle" id="ndvi-gauge-needle" style="left:50%;"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:9px;color:#aaa;margin-bottom:6px;">
+                <span>-1</span><span>0</span><span>0.3</span><span>0.6</span><span>1.0</span>
+              </div>
+              <span id="ndvi-health-badge" style="font-size:11px;padding:2px 10px;border-radius:20px;background:#e8f5e0;color:#2d6a0f;font-weight:500;">Đang phân tích...</span>
+            </div>
+
+            <div class="ndvi-mcard">
+              <div class="accent" style="background:#dc3545;"></div>
+              <div class="mlabel">Cảm biến S2-411</div>
+              <div style="padding-left:8px;display:flex;gap:12px;margin-top:6px;">
+                <div>
+                  <div style="font-size:10px;color:#6c757d;">RED</div>
+                  <div style="font-size:16px;font-weight:600;color:#dc3545;" id="detail-red-411">0.0000</div>
+                </div>
+                <div>
+                  <div style="font-size:10px;color:#6c757d;">NIR</div>
+                  <div style="font-size:16px;font-weight:600;color:#534ab7;" id="detail-nir-411">0.0000</div>
+                </div>
+                <div>
+                  <div style="font-size:10px;color:#6c757d;">NDVI</div>
+                  <div style="font-size:16px;font-weight:600;color:#2d6a0f;" id="detail-ndvi-411">0.0000</div>
+                </div>
+              </div>
+              <div class="msub" id="ndvi-tilt-411">Góc đo: —</div>
+            </div>
+
+            <div class="ndvi-mcard">
+              <div class="accent" style="background:#0d6efd;"></div>
+              <div class="mlabel">Cảm biến S2-412</div>
+              <div style="padding-left:8px;display:flex;gap:12px;margin-top:6px;">
+                <div>
+                  <div style="font-size:10px;color:#6c757d;">RED</div>
+                  <div style="font-size:16px;font-weight:600;color:#dc3545;" id="detail-red-412">0.0000</div>
+                </div>
+                <div>
+                  <div style="font-size:10px;color:#6c757d;">NIR</div>
+                  <div style="font-size:16px;font-weight:600;color:#534ab7;" id="detail-nir-412">0.0000</div>
+                </div>
+                <div>
+                  <div style="font-size:10px;color:#6c757d;">NDVI</div>
+                  <div style="font-size:16px;font-weight:600;color:#2d6a0f;" id="detail-ndvi-412">0.0000</div>
+                </div>
+              </div>
+              <div class="msub" id="ndvi-tilt-412">Góc đo: —</div>
+            </div>
+
+            <div class="ndvi-mcard">
+              <div class="accent" style="background:#fd7e14;"></div>
+              <div class="mlabel">Cập nhật lúc</div>
+              <div class="mval" id="ndvi-update-time" style="color:#495057;font-size:18px;">--:--:--</div>
+              <div class="msub" id="ndvi-update-date">--/--/----</div>
+              <div style="padding-left:8px;margin-top:8px;">
+                <span id="ndvi-mode-badge" style="font-size:11px;padding:2px 10px;border-radius:20px;background:#e8f5e0;color:#2d6a0f;font-weight:500;">● Real-time</span>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Row 2: Spectrum + Scale -->
+          <div class="ndvi-row2">
+
+            <div class="ndvi-card" style="grid-column: span 2;">
+              <div class="ndvi-card-title">
+                <i class="fas fa-wave-square text-primary"></i> Phổ phản xạ — RED vs NIR
+              </div>
+              <div id="ndvi-spectrum-bars">
+                <div class="spec-label"><span>RED — S2-411</span><span id="spec-red411" style="color:#dc3545;">0.0000 W·m⁻²·nm⁻¹</span></div>
+                <div class="spec-bar" id="bar-red411" style="background:#dc3545;width:50%;"></div>
+                <div class="spec-label"><span>RED — S2-412</span><span id="spec-red412" style="color:#dc3545;">0.0000 W·m⁻²·nm⁻¹</span></div>
+                <div class="spec-bar" id="bar-red412" style="background:#dc3545;width:50%;"></div>
+                <div class="spec-label"><span>NIR — S2-411</span><span id="spec-nir411" style="color:#534ab7;">0.0000 W·m⁻²·nm⁻¹</span></div>
+                <div class="spec-bar" id="bar-nir411" style="background:#534ab7;width:50%;"></div>
+                <div class="spec-label"><span>NIR — S2-412</span><span id="spec-nir412" style="color:#534ab7;">0.0000 W·m⁻²·nm⁻¹</span></div>
+                <div class="spec-bar" id="bar-nir412" style="background:#534ab7;width:50%;"></div>
+              </div>
+              <div style="font-size:11px;color:#adb5bd;margin-top:4px;" id="ndvi-ratio-note">NIR/RED ratio: — · Đang chờ dữ liệu...</div>
+            </div>
+
+            <div class="ndvi-card">
+              <div class="ndvi-card-title"><i class="fas fa-leaf text-success"></i> Thang đánh giá NDVI</div>
+              <div style="height:14px;border-radius:6px;background:linear-gradient(to right,#dc3545 0%,#fd7e14 25%,#8bc34a 55%,#2d6a0f 100%);position:relative;margin-bottom:4px;">
+                <div id="ndvi-scale-needle" style="position:absolute;left:50%;top:-3px;width:4px;height:20px;background:#333;border-radius:2px;transform:translateX(-50%);transition:left 0.5s;"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:9px;color:#aaa;margin-bottom:10px;"><span>-1</span><span>0</span><span>0.3</span><span>0.6</span><span>1.0</span></div>
+              <div style="font-size:11px;">
+                <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #f5f5f5;"><span style="width:8px;height:8px;border-radius:2px;background:#dc3545;display:inline-block;"></span><span style="color:#6c757d;">Dưới 0.2</span><span style="margin-left:auto;color:#dc3545;font-weight:500;">Đất trống/cây chết</span></div>
+                <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #f5f5f5;"><span style="width:8px;height:8px;border-radius:2px;background:#fd7e14;display:inline-block;"></span><span style="color:#6c757d;">0.2 – 0.4</span><span style="margin-left:auto;color:#fd7e14;font-weight:500;">Cây yếu, căng thẳng</span></div>
+                <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #f5f5f5;"><span style="width:8px;height:8px;border-radius:2px;background:#8bc34a;display:inline-block;"></span><span style="color:#6c757d;">0.4 – 0.6</span><span style="margin-left:auto;color:#5a8c1a;font-weight:500;">Trung bình</span></div>
+                <div style="display:flex;align-items:center;gap:6px;padding:4px 0;"><span style="width:8px;height:8px;border-radius:2px;background:#2d6a0f;display:inline-block;"></span><span style="color:#6c757d;">Trên 0.6</span><span style="margin-left:auto;color:#2d6a0f;font-weight:600;">Phát triển tốt ✓</span></div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Row 3: Chart + History -->
+          <div class="ndvi-row3">
+
+            <div class="ndvi-card">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
+                <span style="font-size:12px;font-weight:600;color:#495057;">Diễn biến NDVI</span>
+                <div class="ndvi-chart-btns">
+                  <button class="ndvi-btn active" id="ndviBtnRealtime" onclick="ndviSwitchMode('realtime')">Real-time</button>
+                  <button class="ndvi-btn" id="ndviBtnToday" onclick="ndviSwitchMode('today')">Hôm nay</button>
+                  <button class="ndvi-btn" id="ndviBtnWeek" onclick="ndviSwitchMode('week')">Tuần</button>
+                  <button class="ndvi-btn" id="ndviBtnMonth" onclick="ndviSwitchMode('month')">Tháng</button>
+                </div>
+              </div>
+              <div id="ndvi-loading" style="display:none;text-align:center;padding:30px;color:#6c757d;">
+                <i class="fas fa-spinner fa-spin"></i> Đang tải dữ liệu từ SD...
+              </div>
+              <div id="ndviChart" style="width:100%;height:280px;"></div>
+              <div style="display:flex;gap:16px;margin-top:6px;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#6c757d;"><span style="width:20px;height:2px;background:#dc3545;display:inline-block;border-radius:1px;"></span>S2-411</div>
+                <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#6c757d;"><span style="width:20px;height:2px;background:#0d6efd;display:inline-block;border-radius:1px;"></span>S2-412</div>
+                <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#6c757d;"><span style="width:20px;height:2px;background:#2d6a0f;display:inline-block;border-radius:1px;border-style:dashed;"></span>Trung bình</div>
+                <div style="margin-left:auto;font-size:11px;color:#6c757d;" id="ndvi-trend-text"></div>
+              </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:10px;">
+
+              <div class="ndvi-card">
+                <div class="ndvi-card-title"><i class="fas fa-history text-secondary"></i> Lịch sử NDVI (7 ngày)</div>
+                <div id="ndvi-history-list">
+                  <div style="text-align:center;color:#adb5bd;font-size:12px;padding:10px;">Đang tải...</div>
+                </div>
+                <div style="margin-top:8px;font-size:11px;color:#6c757d;text-align:center;">TB 7 ngày: <strong id="ndvi-week-avg" style="color:#2d6a0f;">—</strong></div>
+              </div>
+
+              <div class="ndvi-card">
+                <div class="ndvi-card-title"><i class="fas fa-seedling text-success"></i> Khuyến nghị</div>
+                <div id="ndvi-recommendations">
+                  <div class="ndvi-rec-item">
+                    <div class="ndvi-rec-icon" style="background:#e8f5e0;">💧</div>
+                    <div style="font-size:11px;">
+                      <div id="rec-water" style="color:#495057;font-weight:500;">Tưới nước: Đang phân tích...</div>
+                      <div id="rec-water-sub" style="color:#6c757d;margin-top:2px;"></div>
+                    </div>
+                  </div>
+                  <div class="ndvi-rec-item">
+                    <div class="ndvi-rec-icon" style="background:#e8f5e0;">🌿</div>
+                    <div style="font-size:11px;">
+                      <div id="rec-fert" style="color:#495057;font-weight:500;">Bón phân: Đang phân tích...</div>
+                      <div id="rec-fert-sub" style="color:#6c757d;margin-top:2px;"></div>
+                    </div>
+                  </div>
+                  <div class="ndvi-rec-item">
+                    <div class="ndvi-rec-icon" style="background:#fff3cd;">⚠️</div>
+                    <div style="font-size:11px;">
+                      <div id="rec-alert" style="color:#495057;font-weight:500;">Chênh lệch sensor: —</div>
+                      <div id="rec-alert-sub" style="color:#6c757d;margin-top:2px;"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!----------------------------------------------------------------------------------------------------------->
+      <!-- ========== TRANG DỰ BÁO THỜI TIẾT ========== -->
+      <div id="weatherView" style="display: none;"></div>
+      <!----------------------------------------------------------------------------------------->
+
+
+
+
+
+
+      <!-- Danh sách trạm (nếu cần) -->
+      <div id="stationListView" style="display: none;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="section-title mb-0">
+            <i class="fas fa-th-list me-2"></i>Danh sách trạm
+          </h2>
+          <button class="btn btn-sm btn-outline-primary" onclick="showMainDashboard()">
+            <i class="fas fa-map-marked-alt me-1"></i> Xem bản đồ
+          </button>
+        </div>
+        <div class="row" id="stationCards"></div>
+      </div>
+
+      <!-- Chi tiết trạm (giữ nguyên) -->
+      <div id="stationDetail" style="display: none;">
+        <!-- Giữ nguyên phần chi tiết trạm -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="section-title mb-0">
+            <i class="fas fa-microchip me-2"></i><span id="stationName"></span>
+          </h2>
+          <button class="btn btn-sm btn-outline-secondary" onclick="showMainDashboard()">
+            <i class="fas fa-arrow-left me-1"></i> Quay lại bản đồ
+          </button>
+        </div>
+
+        <!-- Thông tin GPS -->
+        <div class="card mb-3">
+          <div class="card-body p-3">
+            <div class="row align-items-center">
+              <div class="col-md-8">
+                <h6 class="card-title mb-1">
+                  <i class="fas fa-map-marker-alt text-danger me-2"></i>Vị trí GPS
+                </h6>
+                <div id="gpsInfo" class="text-muted small">
+                  <span id="gpsCoords"></span>
+                  <span id="gpsTime" class="ms-3"></span>
+                  <span id="gpsAccuracy" class="ms-3"></span>
+                </div>
+              </div>
+              <div class="col-md-4 text-end">
+                <button class="btn btn-sm btn-outline-info" onclick="navigateToStation()">
+                  <i class="fas fa-directions me-1"></i> Chỉ đường
+                </button>
+                <button class="btn btn-sm btn-outline-success ms-2" onclick="refreshGPS()">
+                  <i class="fas fa-sync-alt me-1"></i> Làm mới
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Các biểu đồ và dữ liệu khác giữ nguyên -->
+        <div id="stationDataCards" class="row g-3 mb-4"></div>
+
+        <!-- Các biểu đồ... -->
+      </div>
+
+
+
+<div id="aiExpertView" style="display:none;">
+<style>
+  #aiExpertView { background:#f0f2f5; }
+  .aix-wrap { display:grid; grid-template-columns:1fr 320px; height:auto; min-height:400px; gap:0; }
+  @media(max-width:800px){ .aix-wrap { grid-template-columns:1fr; } }
+
+  /* Chat */
+  .aix-chat { display:flex; flex-direction:column; background:#fff; border-right:0.5px solid #e2e8f0; }
+  .aix-chat-hdr { padding:10px 14px; border-bottom:0.5px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+  .aix-chat-hdr-left { display:flex; align-items:center; gap:9px; }
+  .aix-avatar { width:34px; height:34px; border-radius:9px; background:#EAF3DE; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+  .aix-title { font-size:13px; font-weight:500; color:#212529; }
+  .aix-sub { font-size:10px; color:#adb5bd; margin-top:1px; }
+  .aix-provider-badge { font-size:10px; padding:2px 8px; border-radius:20px; font-weight:500; }
+  .aix-badge-offline  { background:#f0f2f5; color:#6c757d; }
+  .aix-badge-groq     { background:#EAF3DE; color:#3B6D11; }
+  .aix-badge-anthropic{ background:#EEEDFE; color:#3C3489; }
+  .aix-badge-openai   { background:#E6F1FB; color:#0C447C; }
+  .aix-quick { padding:7px 12px; border-bottom:0.5px solid #f0f2f5; display:flex; gap:5px; flex-wrap:wrap; flex-shrink:0; }
+  .aix-qbtn { padding:3px 10px; border:0.5px solid #dee2e6; border-radius:20px; background:#f8f9fa; color:#495057; font-size:11px; cursor:pointer; transition:all .15s; }
+  .aix-qbtn:hover { background:#EAF3DE; border-color:#97C459; color:#3B6D11; }
+  .aix-messages { flex:1; padding:12px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; min-height:200px; }
+  .aix-msg-ai { display:flex; gap:8px; align-items:flex-start; }
+  .aix-bubble-ai { background:#f8f9fa; border:0.5px solid #e2e8f0; border-radius:10px 10px 10px 2px; padding:9px 12px; font-size:12px; color:#212529; line-height:1.65; max-width:85%; white-space:pre-wrap; }
+  .aix-msg-lbl { font-size:10px; color:#adb5bd; margin-bottom:3px; }
+  .aix-msg-tag { font-size:10px; padding:1px 7px; border-radius:10px; background:#EAF3DE; color:#3B6D11; margin-bottom:4px; display:inline-block; }
+  .aix-msg-user { display:flex; justify-content:flex-end; }
+  .aix-bubble-user { background:#185FA5; color:#E6F1FB; border-radius:10px 10px 2px 10px; padding:9px 12px; font-size:12px; line-height:1.65; max-width:80%; white-space:pre-wrap; }
+  .aix-typing { display:flex; gap:4px; align-items:center; padding:8px 12px; }
+  .aix-dot { width:7px; height:7px; border-radius:50%; background:#adb5bd; animation:aix-bounce .8s infinite; }
+  .aix-dot:nth-child(2){ animation-delay:.15s; }
+  .aix-dot:nth-child(3){ animation-delay:.3s; }
+  @keyframes aix-bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+  .aix-input-wrap { padding:10px 12px; border-top:0.5px solid #e2e8f0; display:flex; gap:8px; align-items:center; flex-shrink:0; }
+  .aix-input { flex:1; border:0.5px solid #dee2e6; border-radius:8px; padding:7px 12px; font-size:12px; background:#f8f9fa; color:#212529; outline:none; }
+  .aix-input:focus { border-color:#185FA5; background:#fff; }
+  .aix-send { width:34px; height:34px; border:none; border-radius:8px; background:#185FA5; color:#fff; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .aix-hint { font-size:10px; color:#adb5bd; text-align:center; padding:3px 0 0; }
+
+  /* Config sidebar */
+  .aix-config { background:#f8f9fa; padding:12px; display:flex; flex-direction:column; gap:10px; overflow-y:auto; }
+  .aix-cfg-card { background:#fff; border:0.5px solid #e2e8f0; border-radius:10px; overflow:hidden; }
+  .aix-cfg-hdr { padding:9px 13px; border-bottom:0.5px solid #f0f2f5; font-size:12px; font-weight:500; color:#212529; display:flex; align-items:center; gap:7px; }
+  .aix-cfg-body { padding:12px 13px; display:flex; flex-direction:column; gap:9px; }
+  .aix-opt-row { display:flex; gap:7px; }
+  .aix-opt { flex:1; padding:8px 4px; border:0.5px solid #dee2e6; border-radius:8px; background:#f8f9fa; text-align:center; cursor:pointer; transition:all .15s; }
+  .aix-opt:hover { border-color:#adb5bd; }
+  .aix-opt.sel-offline  { border-color:#adb5bd; background:#f0f2f5; }
+  .aix-opt.sel-groq     { border-color:#3B6D11; background:#EAF3DE; }
+  .aix-opt.sel-paid     { border-color:#534AB7; background:#EEEDFE; }
+  .aix-opt-icon { font-size:17px; margin-bottom:2px; }
+  .aix-opt-name { font-size:11px; font-weight:500; color:#212529; }
+  .aix-opt-desc { font-size:9px; color:#adb5bd; margin-top:1px; }
+  .aix-lbl { font-size:10px; color:#adb5bd; text-transform:uppercase; letter-spacing:.3px; margin-bottom:3px; }
+  .aix-field { width:100%; border:0.5px solid #dee2e6; border-radius:6px; padding:6px 9px; font-size:12px; background:#f8f9fa; color:#212529; outline:none; }
+  .aix-field:focus { border-color:#185FA5; background:#fff; }
+  .aix-btn-row { display:flex; gap:6px; }
+  .aix-btn-save { flex:1; padding:7px; border:none; border-radius:6px; background:#185FA5; color:#fff; font-size:12px; cursor:pointer; }
+  .aix-btn-test { padding:7px 10px; border:0.5px solid #dee2e6; border-radius:6px; background:#f8f9fa; color:#495057; font-size:12px; cursor:pointer; }
+  .aix-status { display:flex; align-items:center; gap:6px; padding:7px 10px; border-radius:8px; font-size:11px; }
+  .aix-status-ok  { background:#EAF3DE; color:#3B6D11; }
+  .aix-status-err { background:#FCEBEB; color:#A32D2D; }
+  .aix-status-off { background:#f0f2f5; color:#6c757d; }
+  .aix-sdot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .aix-sdot-ok  { background:#3B6D11; }
+  .aix-sdot-err { background:#A32D2D; }
+  .aix-sdot-off { background:#adb5bd; }
+  /* section ẩn/hiện */
+  .aix-section { display:none; }
+  .aix-section.show { display:flex; flex-direction:column; gap:9px; }
+
+  /* Bổ sung để có thanh cuộn dọc - giữ nguyên mọi style cũ */
+#aiExpertView {
+  display: block;            /* khi hiển thị, đảm bảo chiều cao có hiệu lực */
+  height: 100vh;            /* hoặc chiều cao mong muốn, ví dụ 100% */
+  overflow: hidden;         /* tránh scroll kép */
+}
+
+.aix-wrap {
+  height: 100%;
+  min-height: 0;            /* cho phép các thành phần con co lại */
+}
+
+.aix-chat, .aix-config {
+  height: 100%;
+  min-height: 0;            /* quan trọng trong flexbox */
+}
+
+.aix-messages {
+  overflow-y: auto;         /* thanh cuộn dọc cho chat */
+  flex: 1 1 auto;
+  min-height: 0;            /* bắt buộc để overflow hoạt động */
+}
+
+.aix-config {
+  overflow-y: auto;         /* thanh cuộn cho panel cấu hình */
+  min-height: 0;
+}
+</style>
+
+<div class="aix-wrap">
+
+  <!-- Panel chat -->
+  <div class="aix-chat">
+    <div class="aix-chat-hdr">
+      <div class="aix-chat-hdr-left">
+        <div class="aix-avatar">🌾</div>
+        <div>
+          <div class="aix-title">Chuyên gia nông nghiệp AI</div>
+          <div class="aix-sub">Phân tích dữ liệu cảm biến thực tế từ 6 trạm</div>
+        </div>
+      </div>
+      <span class="aix-provider-badge aix-badge-offline" id="aix-badge">Offline</span>
+    </div>
+
+    <div class="aix-quick">
+      <span style="font-size:10px;color:#adb5bd;line-height:2.2;">Hỏi nhanh:</span>
+      <button class="aix-qbtn" onclick="aixQuick('tuoi nuoc')">💧 Tưới nước</button>
+      <button class="aix-qbtn" onclick="aixQuick('bon phan')">🌿 Bón phân</button>
+      <button class="aix-qbtn" onclick="aixQuick('canh bao bat thuong')">⚠️ Cảnh báo</button>
+      <button class="aix-qbtn" onclick="aixQuick('ndvi suc khoe cay')">🌱 NDVI</button>
+      <button class="aix-qbtn" onclick="aixQuick('bao cao tong hop')">📊 Tổng hợp</button>
+    </div>
+
+    <div class="aix-messages" id="aix-messages">
+      <div class="aix-msg-ai">
+        <div class="aix-avatar" style="width:26px;height:26px;font-size:13px;flex-shrink:0;">🌾</div>
+        <div>
+          <div class="aix-msg-lbl">Chuyên gia AI · Sẵn sàng</div>
+          <div class="aix-bubble-ai">Xin chào! Tôi sẽ phân tích dữ liệu từ các trạm cảm biến và đưa ra khuyến nghị canh tác cụ thể.
+
+H»i tôi về tưới nước, bón phân, sức khỏe cây trồng hoặc cảnh báo bất thường!</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="aix-input-wrap">
+      <input class="aix-input" id="aix-input" placeholder="Hỏi về tưới nước, bón phân, sâu bệnh..."
+        onkeydown="if(event.key==='Enter'){event.preventDefault();aixSend();}">
+      <button class="aix-send" onclick="aixSend()" id="aix-send-btn">
+        <i class="fas fa-paper-plane" style="font-size:13px;"></i>
+      </button>
+    </div>
+    <div class="aix-hint" id="aix-hint">Dữ liệu cảm biến được gửi kèm tự động · Offline = không cần internet</div>
+  </div>
+
+  <!-- Panel config -->
+  <div class="aix-config">
+
+    <!-- Chọn engine -->
+    <div class="aix-cfg-card">
+      <div class="aix-cfg-hdr">
+        <i class="fas fa-microchip" style="color:#3B6D11;font-size:12px;"></i>
+        Chọn engine AI
+      </div>
+      <div class="aix-cfg-body">
+        <div class="aix-opt-row">
+          <div class="aix-opt sel-offline" id="aix-opt-offline" onclick="aixSelectProvider('offline')">
+            <div class="aix-opt-icon">🔌</div>
+            <div class="aix-opt-name">Offline</div>
+            <div class="aix-opt-desc">Không cần internet</div>
+          </div>
+          <div class="aix-opt" id="aix-opt-groq" onclick="aixSelectProvider('groq')">
+            <div class="aix-opt-icon">⚡</div>
+            <div class="aix-opt-name">Groq Free</div>
+            <div class="aix-opt-desc">Miễn phí · Nhanh</div>
+          </div>
+          <div class="aix-opt" id="aix-opt-paid" onclick="aixSelectProvider('paid')">
+            <div class="aix-opt-icon">✨</div>
+            <div class="aix-opt-name">Trả phí</div>
+            <div class="aix-opt-desc">Claude / GPT</div>
+          </div>
+        </div>
+
+        <!-- Groq section -->
+        <div class="aix-section" id="aix-sec-groq">
+          <div>
+            <div class="aix-lbl">Groq API Key <a href="https://console.groq.com" target="_blank" style="font-size:10px;color:#185FA5;">Lấy miễn phí →</a></div>
+            <input class="aix-field" id="aix-groq-key" type="password" placeholder="gsk_••••••••••••">
+          </div>
+          <div>
+            <div class="aix-lbl">Model</div>
+            <select class="aix-field" id="aix-groq-model">
+              <option value="llama-3.1-8b-instant">llama-3.1-8b (Nhanh nhất)</option>
+              <option value="llama-3.3-70b-versatile">llama-3.3-70b (Tốt hơn)</option>
+              <option value="mixtral-8x7b-32768">mixtral-8x7b (Cân bằng)</option>
+            </select>
+          </div>
+          <div class="aix-btn-row">
+            <button class="aix-btn-test" onclick="aixTest()">🔌 Test</button>
+            <button class="aix-btn-save" onclick="aixSaveConfig('groq')">💾 Lưu lên Gateway</button>
+          </div>
+        </div>
+
+        <!-- Paid section -->
+        <div class="aix-section" id="aix-sec-paid">
+          <div>
+            <div class="aix-lbl">Provider</div>
+            <select class="aix-field" id="aix-paid-provider">
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="openai">OpenAI (GPT)</option>
+            </select>
+          </div>
+          <div>
+            <div class="aix-lbl">API Key</div>
+            <input class="aix-field" id="aix-paid-key" type="password" placeholder="sk-ant-••• hoặc sk-•••">
+          </div>
+          <div>
+            <div class="aix-lbl">Model</div>
+            <select class="aix-field" id="aix-paid-model">
+              <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 (Rẻ nhất)</option>
+              <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
+              <option value="gpt-4o-mini">gpt-4o-mini</option>
+              <option value="gpt-4o">gpt-4o</option>
+            </select>
+          </div>
+          <div class="aix-btn-row">
+            <button class="aix-btn-test" onclick="aixTest()">🔌 Test</button>
+            <button class="aix-btn-save" style="background:#534AB7;" onclick="aixSaveConfig('paid')">💾 Lưu</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trạng thái -->
+    <div class="aix-cfg-card">
+      <div class="aix-cfg-hdr">
+        <i class="fas fa-signal" style="color:#185FA5;font-size:12px;"></i>
+        Trạng thái kết nối
+      </div>
+      <div class="aix-cfg-body">
+        <div class="aix-status aix-status-off" id="aix-status-main">
+          <div class="aix-sdot aix-sdot-off"></div>
+          <span id="aix-status-text">Chưa cấu hình API</span>
+        </div>
+        <div class="aix-status aix-status-ok">
+          <div class="aix-sdot aix-sdot-ok"></div>
+          Offline AI: Luôn sẵn sàng (fallback)
+        </div>
+        <div style="font-size:10px;color:#adb5bd;line-height:1.5;">
+          Khi API không phản hồi, tự động chuyển về offline rule-based.
+        </div>
+      </div>
+    </div>
+
+    <!-- Hướng dẫn Groq -->
+    <div class="aix-cfg-card">
+      <div class="aix-cfg-hdr">
+        <i class="fas fa-book" style="color:#854F0B;font-size:12px;"></i>
+        Hướng dẫn lấy Groq key
+      </div>
+      <div class="aix-cfg-body" style="font-size:11px;color:#6c757d;line-height:1.7;gap:4px;">
+        <div>1. Vào <strong>console.groq.com</strong></div>
+        <div>2. Đăng ký miễn phí (không cần thẻ)</div>
+        <div>3. Vào <strong>API Keys → Create key</strong></div>
+        <div>4. Copy key bắt đầu bằng <code style="background:#f0f2f5;padding:1px 5px;border-radius:4px;">gsk_</code></div>
+        <div>5. Paste vào ô trên → Lưu lên Gateway</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+    </main>
+  </div>
+
+  <!-- AI CHAT PANEL -->
+  <div id="aiChatView" style="display:none; position:fixed; top:50px; left:0; right:0; bottom:40px; background:#f8f9fa; flex-direction:column; z-index:500;">
+    <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-white border-bottom shadow-sm" style="flex-shrink:0;">
+      <div class="d-flex align-items-center gap-2">
+        <i class="fas fa-robot text-success fs-5"></i>
+        <div>
+          <div class="fw-bold" style="font-size:0.95rem;">Trợ lý AI Nông nghiệp</div>
+          <div class="text-muted" style="font-size:0.72rem;">Tư vấn dựa trên dữ liệu cảm biến thực tế</div>
+        </div>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-success" onclick="sendQuickQuestion('Phân tích tổng hợp tất cả trạm')"><i class="fas fa-chart-bar me-1"></i>Phân tích</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="clearAIChat()"><i class="fas fa-trash me-1"></i>Xóa</button>
+        <button class="btn btn-sm btn-secondary" onclick="showMainDashboard()"><i class="fas fa-times"></i></button>
+      </div>
+    </div>
+    <div class="px-3 py-2 bg-white border-bottom" style="flex-shrink:0;">
+      <div class="d-flex gap-2 flex-wrap">
+        <span class="text-muted small me-1">Hỏi nhanh:</span>
+        <button class="btn btn-outline-success btn-sm rounded-pill" onclick="sendQuickQuestion('tuoi nuoc')">💧 Tưới nước</button>
+        <button class="btn btn-outline-primary btn-sm rounded-pill" onclick="sendQuickQuestion('bon phan')">🌿 Bón phân</button>
+        <button class="btn btn-outline-warning btn-sm rounded-pill" onclick="sendQuickQuestion('canh bao')">⚠️ Cảnh báo</button>
+        <button class="btn btn-outline-info btn-sm rounded-pill" onclick="sendQuickQuestion('ndvi suc khoe cay')">🌱 NDVI</button>
+        <button class="btn btn-outline-danger btn-sm rounded-pill" onclick="sendQuickQuestion('bao cao tong hop')">📊 Tổng hợp</button>
+      </div>
+    </div>
+    <div id="aiChatMessages" style="flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px;">
+      <div class="text-center text-muted py-4">
+        <i class="fas fa-robot fa-2x mb-2 d-block text-success opacity-50"></i>
+        <div class="fw-bold">Xin chào! Tôi là trợ lý AI nông nghiệp MIA.</div>
+        <div class="small">Tôi sẽ phân tích dữ liệu cảm biến và đưa ra khuyến nghị về tưới nước, bón phân cho cây trồng.</div>
+      </div>
+    </div>
+    <div class="px-3 py-2 bg-white border-top" style="flex-shrink:0;">
+      <div class="d-flex gap-2">
+        <input type="text" id="aiChatInput" class="form-control" placeholder="Hỏi về tưới nước, bón phân, sức khỏe cây trồng..." onkeydown="if(event.key==='Enter'){event.preventDefault();sendAIMessage();}">
+        <button class="btn btn-success px-3" onclick="sendAIMessage()" id="aiSendBtn"><i class="fas fa-paper-plane"></i></button>
+      </div>
+      <div class="text-muted mt-1" style="font-size:0.7rem;">Dữ liệu cảm biến được gửi tự động kèm câu hỏi</div>
+    </div>
+  </div>
+
+  <!-- Footer Section -->
+  <footer class="footer text-center py-3 bg-light border-top">
+    &copy; 2026 RRIV. | Đang hiển thị <span id="stationsCount">0</span> trạm
+  </footer>
+
+  <!-- External Scripts -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="script.js"></script>
+
+
+
+  <!-- wifi -->
+
+  <!-- Modal WiFi - Phiên bản đơn giản chỉ có nút Reset -->
+  <!-- Modal Reset WiFi -->
+  <div class="modal fade" id="wifiConfigModal" tabindex="-1" aria-labelledby="wifiConfigModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-danger text-white">
+          <h5 class="modal-title" id="wifiConfigModalLabel">
+            <i class="fas fa-exclamation-triangle me-2"></i>Reset WiFi
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body text-center py-4">
+          <i class="fas fa-wifi-slash" style="font-size: 48px; color: #dc3545;"></i>
+          <p class="mt-3 mb-2"><strong>Bạn có chắc muốn reset cấu hình WiFi?</strong></p>
+          <p class="text-muted small">Getway sẽ xóa mật khẩu và chuyển sang chế độ Access Point.<br>
+            Sau đó bạn cần kết nối lại để cấu hình mới.</p>
+          <div id="configMessage" class="alert d-none mt-3" role="alert"></div>
+        </div>
+        <div class="modal-footer justify-content-center">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+          <button type="button" class="btn btn-danger" id="resetWifiBtn">
+            <i class="fas fa-trash-alt me-1"></i>Xóa & Chuyển sang chế độ AP
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Đăng Nhập -->
+  <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title" id="loginModalLabel">
+            <i class="fas fa-sign-in-alt me-2"></i>Đăng Nhập Hệ Thống
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="loginForm">
+            <div class="mb-3">
+              <label for="loginUsername" class="form-label">
+                <i class="fas fa-user me-1"></i>Tên đăng nhập
+              </label>
+              <input type="text" class="form-control" id="loginUsername" required>
+            </div>
+            <div class="mb-3">
+              <label for="loginPassword" class="form-label">
+                <i class="fas fa-lock me-1"></i>Mật khẩu
+              </label>
+              <input type="password" class="form-control" id="loginPassword" required>
+            </div>
+            <div class="form-check mb-3">
+              <input type="checkbox" class="form-check-input" id="rememberMe">
+              <label class="form-check-label" for="rememberMe">Ghi nhớ đăng nhập</label>
+            </div>
+            <div class="mb-3 text-end">
+              <a href="#" class="text-decoration-none" onclick="showForgotPasswordModal()">
+                <i class="fas fa-key me-1"></i>Quên mật khẩu?
+              </a>
+            </div>
+            <div id="loginMessage" class="alert d-none" role="alert"></div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-primary" form="loginForm">Đăng Nhập</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Quản Lý Tài Khoản (Admin) -->
+  <div class="modal fade" id="accountManagerModal" tabindex="-1" aria-labelledby="accountManagerModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-success text-white">
+          <h5 class="modal-title" id="accountManagerModalLabel">
+            <i class="fas fa-users-cog me-2"></i>Quản Lý Tài Khoản
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Tab điều hướng -->
+          <ul class="nav nav-tabs mb-3" id="accountTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="create-tab" data-bs-toggle="tab" data-bs-target="#create-tab-pane"
+                type="button">
+                <i class="fas fa-user-plus me-1"></i>Tạo tài khoản
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="manage-tab" data-bs-toggle="tab" data-bs-target="#manage-tab-pane"
+                type="button">
+                <i class="fas fa-list me-1"></i>Danh sách tài khoản
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="permissions-tab" data-bs-toggle="tab" data-bs-target="#permissions-tab-pane"
+                type="button">
+                <i class="fas fa-shield-alt me-1"></i>Phân quyền
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content" id="accountTabsContent">
+            <!-- Tab tạo tài khoản -->
+            <div class="tab-pane fade show active" id="create-tab-pane" role="tabpanel">
+              <form id="createAccountForm">
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Tên đăng nhập *</label>
+                    <input type="text" class="form-control" id="newAccountUsername" required>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Mật khẩu mặc định *</label>
+                    <input type="password" class="form-control" id="newAccountPassword" value="123456" required>
+                    <small class="text-muted">Mật khẩu mặc định: 123456</small>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Họ tên</label>
+                  <input type="text" class="form-control" id="newAccountFullname">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Email</label>
+                  <input type="email" class="form-control" id="newAccountEmail">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Vai trò</label>
+                  <select class="form-select" id="newAccountRole">
+                    <option value="viewer">Người xem</option>
+                    <option value="operator">Vận hành</option>
+                    <option value="manager">Quản lý</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Trạm được truy cập</label>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="selectAllStations">
+                    <label class="form-check-label" for="selectAllStations">
+                      Chọn tất cả trạm
+                    </label>
+                  </div>
+                  <div id="stationsChecklist" class="mt-2">
+                    <!-- Danh sách trạm sẽ được thêm bằng JS -->
+                  </div>
+                </div>
+                <div id="createAccountMessage" class="alert d-none" role="alert"></div>
+              </form>
+            </div>
+
+            <!-- Tab danh sách tài khoản -->
+            <div class="tab-pane fade" id="manage-tab-pane" role="tabpanel">
+              <div class="table-responsive">
+                <table class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>Tên đăng nhập</th>
+                      <th>Họ tên</th>
+                      <th>Vai trò</th>
+                      <th>Trạng thái</th>
+                      <th>Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody id="accountsTableBody">
+                    <!-- Dữ liệu sẽ được thêm bằng JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Tab phân quyền -->
+            <div class="tab-pane fade" id="permissions-tab-pane" role="tabpanel">
+              <div class="mb-3">
+                <label class="form-label">Chọn tài khoản để phân quyền</label>
+                <select class="form-select" id="selectAccountForPermissions" onchange="loadAccountPermissions()">
+                  <option value="">-- Chọn tài khoản --</option>
+                </select>
+              </div>
+              <div id="permissionsContent" style="display: none;">
+                <h6>Quyền truy cập chức năng</h6>
+                <div class="row">
+                  <div class="col-md-6">
+                    <div class="form-check mb-2">
+                      <input class="form-check-input permission-check" type="checkbox" id="permViewMap"
+                        data-perm="viewMap">
+                      <label class="form-check-label" for="permViewMap">
+                        Xem bản đồ trạm
+                      </label>
+                    </div>
+                    <div class="form-check mb-2">
+                      <input class="form-check-input permission-check" type="checkbox" id="permViewCharts"
+                        data-perm="viewCharts">
+                      <label class="form-check-label" for="permViewCharts">
+                        Xem biểu đồ
+                      </label>
+                    </div>
+                    <div class="form-check mb-2">
+                      <input class="form-check-input permission-check" type="checkbox" id="permViewWeather"
+                        data-perm="viewWeather">
+                      <label class="form-check-label" for="permViewWeather">
+                        Xem thời tiết
+                      </label>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="form-check mb-2">
+                      <input class="form-check-input permission-check" type="checkbox" id="permExportCSV"
+                        data-perm="exportCSV">
+                      <label class="form-check-label" for="permExportCSV">
+                        Xuất dữ liệu CSV
+                      </label>
+                    </div>
+                    <div class="form-check mb-2">
+                      <input class="form-check-input permission-check" type="checkbox" id="permConfigWifi"
+                        data-perm="configWifi">
+                      <label class="form-check-label" for="permConfigWifi">
+                        Cấu hình WiFi
+                      </label>
+                    </div>
+                    <div class="form-check mb-2">
+                      <input class="form-check-input permission-check" type="checkbox" id="permManageAccounts"
+                        data-perm="manageAccounts">
+                      <label class="form-check-label" for="permManageAccounts">
+                        Quản lý tài khoản
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <h6 class="mt-4">Trạm được phép truy cập</h6>
+                <div id="permissionStationsList" class="mt-2">
+                  <!-- Danh sách trạm sẽ được thêm bằng JS -->
+                </div>
+
+                <button class="btn btn-primary mt-3" onclick="saveAccountPermissions()">
+                  <i class="fas fa-save me-1"></i>Lưu phân quyền
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Quên Mật Khẩu -->
+  <div class="modal fade" id="forgotPasswordModal" tabindex="-1" aria-labelledby="forgotPasswordModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-warning">
+          <h5 class="modal-title" id="forgotPasswordModalLabel">
+            <i class="fas fa-key me-2"></i>Khôi Phục Mật Khẩu
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <p class="text-muted">Vui lòng liên hệ quản trị viên để được cấp lại mật khẩu:</p>
+            <div class="alert alert-info">
+              <i class="fas fa-info-circle me-2"></i>
+              <strong>MIA:</strong>minhanh.science@gmail.com<br>
+              <strong>Số điện thoại:</strong> 0969. 406. 361
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Tên đăng nhập của bạn</label>
+            <input type="text" class="form-control" id="forgotUsername" placeholder="Nhập tên đăng nhập">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Email đăng ký</label>
+            <input type="email" class="form-control" id="forgotEmail" placeholder="Nhập email đăng ký">
+          </div>
+          <div id="forgotPasswordMessage" class="alert d-none" role="alert"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+          <button type="button" class="btn btn-warning" onclick="requestPasswordReset()">
+            <i class="fas fa-paper-plane me-1"></i>Gửi yêu cầu
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dropdown menu khi đã đăng nhập -->
+  <div class="dropdown-menu dropdown-menu-end" id="userDropdown"
+    style="display: none; position: absolute; top: 50px; right: 15px; min-width: 200px;">
+    <h6 class="dropdown-header" id="userDropdownHeader"></h6>
+    <div class="dropdown-divider"></div>
+    <a class="dropdown-item" href="#" onclick="showAccountInfo()">
+      <i class="fas fa-user-circle me-2"></i>Thông tin tài khoản
+    </a>
+    <a class="dropdown-item" href="#" onclick="changePassword()">
+      <i class="fas fa-key me-2"></i>Đổi mật khẩu
+    </a>
+    <!--
+  <a class="dropdown-item" href="#" onclick="showAccountManager()" id="manageAccountsItem">
+    <i class="fas fa-users-cog me-2"></i>Quản lý tài khoản
+  </a>
+-->
+    <div class="dropdown-divider"></div>
+    <a class="dropdown-item text-danger" href="#" onclick="logout()">
+      <i class="fas fa-sign-out-alt me-2"></i>Đăng xuất
+    </a>
+  </div>
+
+
+  <!-- Overlay loading chung -->
+  <div id="globalLoadingOverlay"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;">
+    <div class="bg-white rounded-3 shadow-lg p-4 text-center">
+      <i class="fas fa-spinner fa-spin fa-2x text-primary mb-2"></i>
+      <div class="mt-2">Đang tải dữ liệu hệ thống...</div>
+    </div>
+  </div>
+
+
+
+  </body>
+
+</html>
