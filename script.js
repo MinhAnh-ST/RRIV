@@ -622,8 +622,9 @@ function addStationMarkers() {
 
 function createCustomMarker(station) {
   // Check dữ liệu cảm biến thực (bỏ qua voltage mặc định ở index 9)
+  // NDVI node: data[2]=angle_up, data[5]=angle_down — dùng angle vì red/nir có thể = 0
   const hasData = station.isNDVI
-    ? station.data && (station.data[0] !== 0 || station.data[1] !== 0 || station.data[6] !== 0)
+    ? station.data && (station.data[2] !== 0 || station.data[5] !== 0 || station.data[6] !== 0 || station.data[7] !== 0)
     : station.data && (station.data[0] !== 0 || station.data[1] !== 0 || station.data[2] !== 0 || station.data[3] !== 0);
 
   if (!hasData) {
@@ -649,7 +650,7 @@ function createCustomMarker(station) {
 function createStationPopup(station, index) {/*Phiên bản 2.0 cập nhật 2/4/2026*/
   // Check dữ liệu cảm biến thực (bỏ qua voltage mặc định ở index 9)
   const hasData = station.isNDVI
-    ? station.data && (station.data[0] !== 0 || station.data[1] !== 0 || station.data[6] !== 0)
+    ? station.data && (station.data[2] !== 0 || station.data[5] !== 0 || station.data[6] !== 0 || station.data[7] !== 0)
     : station.data && (station.data[0] !== 0 || station.data[1] !== 0 || station.data[2] !== 0 || station.data[3] !== 0);
 
   const statusText = !hasData
