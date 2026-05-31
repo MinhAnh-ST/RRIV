@@ -1660,6 +1660,7 @@ function showAllCharts() {
   if (allChartsView) {
     allChartsView.style.display = 'flex';
 allChartsView.style.flexDirection = 'column';
+allChartsView.style.overflowY = 'auto';  // thêm dòng này
     currentTimeRange = 'week';
     historicalCache = {};
     ['day','week','month'].forEach(r => {
