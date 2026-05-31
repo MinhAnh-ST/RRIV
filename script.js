@@ -176,9 +176,8 @@ async function fetchRealDataFromGateway() {
           isRealGPS: hasGPS
         }
       });
-    
+    }
     stations = newStations;
-   
 
     // Cập nhật lịch sử cho tất cả trạm
     const nowLabel = new Date().toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
