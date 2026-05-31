@@ -1658,9 +1658,7 @@ function showAllCharts() {
   hideAllViews();
   const allChartsView = document.getElementById('allChartsView');
   if (allChartsView) {
-    allChartsView.style.display = 'flex';
-allChartsView.style.flexDirection = 'column';
-allChartsView.style.overflowY = 'auto';  // thêm dòng này
+    allChartsView.style.display = 'block';
     currentTimeRange = 'week';
     historicalCache = {};
     ['day','week','month'].forEach(r => {
