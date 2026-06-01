@@ -7180,7 +7180,7 @@ async function mdSave() {
   }
 }
 
-// ------------------------------------------------------------------
+/// ------------------------------------------------------------------
 // THÊM TRƯỜNG MỚI - FIX CHÍNH
 // ------------------------------------------------------------------
 async function mdAddField() {
@@ -7227,13 +7227,10 @@ async function mdAddField() {
   console.log('[mdAddField] New field:', newField, '| Total:', manualFields.length);
 
   try {
-    const res = await fetch(`${GATEWAY_URL}/api/manual-fields`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(manualFields)
-    });
-
-    console.log('[mdAddField] Save response:', res.status);
+    localStorage.setItem('rriv_manual_fields', JSON.stringify(manualFields));
+    {
+      const res = { ok: true }; // localStorage luôn thành công
+      console.log('[mdAddField] Saved to localStorage');
 
     if (res.ok) {
       showToast(`✅ Đã thêm trường "${name}"`, 'success');
@@ -7272,19 +7269,13 @@ async function mdAddField() {
         };
       }
 
-    } else {
-      // Rollback nếu gateway lỗi
-      manualFields.pop();
-      const errText = await res.text().catch(() => 'Unknown');
-      console.error('[mdAddField] Error:', res.status, errText);
-      showErr(`Lỗi lưu lên Gateway (${res.status}): ${errText}`);
-    }
+    } }
 
   } catch(e) {
-    // Rollback
     manualFields.pop();
+    localStorage.setItem('rriv_manual_fields', JSON.stringify(manualFields));
     console.error('[mdAddField] Exception:', e);
-    showErr('Không kết nối được Gateway: ' + e.message);
+    showErr('Lỗi lưu fields: ' + e.message);
   } finally {
     if (addBtn) {
       addBtn.disabled = false;
@@ -7306,12 +7297,9 @@ async function mdDeleteField(fid) {
   manualFields = manualFields.filter(f => f.id !== fid);
 
   try {
-    const res = await fetch(`${GATEWAY_URL}/api/manual-fields`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(manualFields)
-    });
-
+    localStorage.setItem('rriv_manual_fields', JSON.stringify(manualFields));
+    {
+      const res = { ok: true };
     if (res.ok) {
       showToast(`✅ Đã xóa trường "${field.name}"`, 'success');
 
@@ -7337,13 +7325,11 @@ async function mdDeleteField(fid) {
         };
       }
 
-    } else {
-      manualFields = backup;
-      showToast('Lỗi xóa trường trên Gateway', 'error');
-    }
+    } }
   } catch(e) {
     manualFields = backup;
-    showToast('Không kết nối được Gateway: ' + e.message, 'error');
+    localStorage.setItem('rriv_manual_fields', JSON.stringify(backup));
+    showToast('Lỗi xóa trường: ' + e.message, 'error');
   }
 }
 
@@ -7353,104 +7339,70 @@ async function mdDeleteField(fid) {
 async function mdLoadHistory() {
   const el = document.getElementById('md-hist-table');
   if (!el) return;
-
   el.innerHTML = `<div class="text-center text-muted py-3" style="font-size:13px">
-    <i class="fas fa-spinner fa-spin me-2"></i>Đang tải từ SD...</div>`;
-
-  let rows = [];
+    <i class="fas fa-spinner fa-spin me-2"></i>Đang tải...</div>`;
   try {
-    const filesRes = await fetch(`${GATEWAY_URL}/api/sd/files`);
-    if (!filesRes.ok) throw new Error('Cannot get file list');
-    const files = await filesRes.json();
-    const mfiles = files
-      .filter(f => f.startsWith('manual-') && f.endsWith('.csv'))
-      .sort()
-      .reverse()
-      .slice(0, 5);
-
-    for (const fname of mfiles) {
-      try {
-        const csv = await fetch(`${GATEWAY_URL}/api/sd/download?file=${encodeURIComponent(fname)}`).then(r => r.text());
-        if (!csv || csv.trim().length === 0) continue;
-        const lines = csv.trim().split('\n');
-        if (lines.length < 2) continue;
-        const headers = lines[0].split(',').map(h => h.trim());
-        for (let i = lines.length - 1; i >= 1; i--) {
-          if (!lines[i].trim()) continue;
-          const vals = lines[i].split(',').map(v => v.trim());
-          const obj = {};
-          headers.forEach((h, j) => obj[h] = vals[j] || '');
-          rows.push(obj);
-        }
-      } catch(e) {
-        console.warn('[mdLoadHistory] Cannot read file:', fname, e);
-      }
+    const res  = await fetch(`${SHEETS_URL}?action=getManual&days=365`);
+    const rows = await res.json();
+    if (!rows || rows.length === 0) {
+      el.innerHTML = `<div class="text-center text-muted py-4" style="font-size:13px">
+        <i class="fas fa-clipboard me-2"></i>Chưa có dữ liệu phân tích tay</div>`;
+      return;
     }
-  } catch(e) {
-    console.warn('[mdLoadHistory] Error:', e);
-  }
+    // lọc search/date
+    const search = (document.getElementById('md-search')?.value || '').toLowerCase();
+    const from   = document.getElementById('md-from')?.value  || '';
+    const to     = document.getElementById('md-to')?.value    || new Date().toISOString().slice(0,10);
+    let filtered = rows;
+    if (search) filtered = filtered.filter(r => (r['Ten mau']||'').toLowerCase().includes(search));
+    if (from)   filtered = filtered.filter(r => (r['Ngay lay mau']||'') >= from);
+    if (to)     filtered = filtered.filter(r => (r['Ngay lay mau']||'') <= to);
 
-  if (rows.length === 0) {
-    el.innerHTML = `<div class="text-center text-muted py-4" style="font-size:13px">
-      <i class="fas fa-clipboard me-2"></i>Chưa có dữ liệu phân tích tay</div>`;
-    return;
-  }
-
-  // Lọc theo search/date
-  const search = (document.getElementById('md-search')?.value || '').toLowerCase();
-  const from   = document.getElementById('md-from')?.value  || '';
-  const to     = document.getElementById('md-to')?.value    || '';
-  if (search) rows = rows.filter(r => (r['Ten mau'] || '').toLowerCase().includes(search));
-  if (from)   rows = rows.filter(r => (r['Ngay lay mau'] || '') >= from);
-  if (to)     rows = rows.filter(r => (r['Ngay lay mau'] || '') <= to);
-
-  const fixed = ['Timestamp', 'Ngay lay mau', 'Ten mau', 'Do sau', 'Ghi chu'];
-  const dynCols = Object.keys(rows[0] || {}).filter(k => !fixed.includes(k));
-
-  const thead = dynCols.map(c => {
-    const f = manualFields.find(f => f.id === c);
-    return `<th style="font-size:12px;white-space:nowrap">
-      ${f ? f.name.replace(/\(.*?\)/, '').trim() : c}
-      <br><span style="font-weight:400;color:#adb5bd;font-size:10px">${f ? f.unit : ''}</span>
-    </th>`;
-  }).join('');
-
-  const tbody = rows.slice(0, 50).map(r => {
-    const cells = dynCols.map(c => {
-      const v = r[c];
-      if (!v || v === '') return '<td style="color:#dee2e6">—</td>';
-      const n = parseFloat(v);
+    const fixed   = ['Timestamp','Ngay lay mau','Ten mau','Do sau','Ghi chu'];
+    const dynCols = Object.keys(rows[0]||{}).filter(k => !fixed.includes(k));
+    const thead   = dynCols.map(c => {
       const f = manualFields.find(f => f.id === c);
-      const warn = f && !isNaN(n) && (n < f.ref_min || n > f.ref_max);
-      return `<td style="${warn ? 'color:#dc3545;font-weight:500' : ''}">${isNaN(n) ? v : n.toFixed(2)}</td>`;
+      return `<th style="font-size:12px;white-space:nowrap">
+        ${f ? f.name.replace(/\(.*?\)/,'').trim() : c}
+        <br><span style="font-weight:400;color:#adb5bd;font-size:10px">${f?f.unit:''}</span>
+      </th>`;
     }).join('');
-
-    return `<tr>
-      <td style="font-size:12px;color:#6c757d;white-space:nowrap">${r['Ngay lay mau'] || ''}</td>
-      <td style="font-weight:500">${r['Ten mau'] || ''}</td>
-      <td style="font-size:12px;color:#6c757d">${r['Do sau'] || '—'}</td>
-      ${cells}
-      <td style="font-size:11px;color:#adb5bd">${r['Ghi chu'] || '—'}</td>
-    </tr>`;
-  }).join('');
-
-  el.innerHTML = `
-    <div style="overflow-x:auto">
-      <table class="table table-sm mb-0" style="font-size:13px">
-        <thead style="background:#f8f9fa">
-          <tr>
-            <th style="font-size:12px">Ngày</th>
-            <th style="font-size:12px">Tên / Mã mẫu</th>
-            <th style="font-size:12px">Độ sâu</th>
-            ${thead}
-            <th style="font-size:12px">Ghi chú</th>
-          </tr>
-        </thead>
-        <tbody>${tbody}</tbody>
-      </table>
-    </div>
-    <div style="font-size:11px;color:#adb5bd;padding:8px 4px">
-      ${rows.length} bản ghi ·
-      <span style="color:#dc3545">Màu đỏ</span> = ngoài ngưỡng tham chiếu
-    </div>`;
+    const tbody = filtered.slice(0,50).map(r => {
+      const ngay = r['Ngay lay mau'] ? new Date(r['Ngay lay mau']).toLocaleDateString('vi-VN') : '';
+      const cells = dynCols.map(c => {
+        const v = r[c]; if (!v||v==='') return '<td style="color:#dee2e6">—</td>';
+        const n = parseFloat(v);
+        const f = manualFields.find(f => f.id === c);
+        const warn = f && !isNaN(n) && (n < f.ref_min || n > f.ref_max);
+        return `<td style="${warn?'color:#dc3545;font-weight:500':''}">${isNaN(n)?v:n.toFixed(2)}</td>`;
+      }).join('');
+      return `<tr>
+        <td style="font-size:12px;color:#6c757d;white-space:nowrap">${ngay}</td>
+        <td style="font-weight:500">${r['Ten mau']||''}</td>
+        <td style="font-size:12px;color:#6c757d">${r['Do sau']||'—'}</td>
+        ${cells}
+        <td style="font-size:11px;color:#adb5bd">${r['Ghi chu']||'—'}</td>
+      </tr>`;
+    }).join('');
+    el.innerHTML = `
+      <div style="overflow-x:auto">
+        <table class="table table-sm mb-0" style="font-size:13px">
+          <thead style="background:#f8f9fa">
+            <tr>
+              <th style="font-size:12px">Ngày</th>
+              <th style="font-size:12px">Tên / Mã mẫu</th>
+              <th style="font-size:12px">Độ sâu</th>
+              ${thead}
+              <th style="font-size:12px">Ghi chú</th>
+            </tr>
+          </thead>
+          <tbody>${tbody}</tbody>
+        </table>
+      </div>
+      <div style="font-size:11px;color:#adb5bd;padding:8px 4px">
+        ${filtered.length} bản ghi · <span style="color:#dc3545">Màu đỏ</span> = ngoài ngưỡng
+      </div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="text-center text-muted py-4">Lỗi tải dữ liệu: ${e.message}</div>`;
+  }
 }
