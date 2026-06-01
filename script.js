@@ -1671,7 +1671,7 @@ function showAllCharts() {
     const tu = document.getElementById('acv-update-time');
     if (tu) tu.textContent = 'Cập nhật: ' + new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
     renderAllCharts().then(() => {
-      acvUpdateSummary();
+      setTimeout(() => acvUpdateSummary(), 1500);
       if (allChartsRefreshTimer) clearInterval(allChartsRefreshTimer);
       allChartsRefreshTimer = setInterval(refreshAllChartsWithFilter, 300000);
     });
