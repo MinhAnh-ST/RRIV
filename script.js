@@ -6718,18 +6718,17 @@ async function showManualData() {
 // ------------------------------------------------------------------
 async function mdLoadFields() {
   try {
-    const res = await fetch(`${GATEWAY_URL}/api/manual-fields`);
-    if (res.ok) {
-      const data = await res.json();
+    const saved = localStorage.getItem('rriv_manual_fields');
+    if (saved) {
+      const data = JSON.parse(saved);
       if (Array.isArray(data) && data.length > 0) {
         manualFields = data;
         return;
       }
     }
   } catch(e) {
-    console.warn('[ManualData] Cannot load fields from gateway:', e);
+    console.warn('[ManualData] Cannot load fields:', e);
   }
-  // Fallback mặc định nếu gateway không có
   if (manualFields.length === 0) {
     manualFields = [
       {id:'N',    name:'Đạm tổng số (N)',   unit:'mg/kg',    ref_min:20,  ref_max:80,  required:true},
