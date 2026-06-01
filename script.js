@@ -1670,8 +1670,9 @@ function showAllCharts() {
     });
     const tu = document.getElementById('acv-update-time');
     if (tu) tu.textContent = 'Cập nhật: ' + new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
-    renderAllCharts().then(() => {
-      setTimeout(() => acvUpdateSummary(), 1500);
+    renderAllCharts().then(async () => {
+  await fetchRealDataFromGateway();
+  acvUpdateSummary();
       if (allChartsRefreshTimer) clearInterval(allChartsRefreshTimer);
       allChartsRefreshTimer = setInterval(refreshAllChartsWithFilter, 300000);
     });
