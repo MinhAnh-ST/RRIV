@@ -6564,7 +6564,48 @@ function aixBuildContext() {
 
 
 
+aixShowTyping();
 
+try {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer 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'
+    },
+    body: JSON.stringify({
+      model: 'llama-3.1-8b-instant',
+      max_tokens: 1000,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...aixHistory
+      ]
+    })
+  });
+
+  aixHideTyping();
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    aixAppendMsg('assistant', `⚠️ Lỗi Groq (${res.status}): ${err.error?.message || 'Không xác định'}`);
+    return;
+  }
+
+  const data  = await res.json();
+  const reply = data.choices?.[0]?.message?.content || '❌ Không có phản hồi';
+
+  aixHistory.push({ role: 'assistant', content: reply });
+  aixAppendMsg('assistant', reply);
+  aixUpdateBadge('groq');
+
+} catch(err) {
+  aixHideTyping();
+  console.error('[AIX] Groq error:', err);
+  aixAppendMsg('assistant', '❌ Không kết nối được Groq. Kiểm tra kết nối internet.');
+} finally {
+  if (btn) btn.disabled = false;
+  if (inp) inp.focus();
+}
 // =============================================================
 // HƯỚNG DẪN ÁP DỤNG:
 // 1. Tìm dòng:  // ==================== NHAP LIEU THU CONG ====================
