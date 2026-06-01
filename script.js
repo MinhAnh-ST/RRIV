@@ -5215,6 +5215,15 @@ async function showSensorLogFiles() {
   });
 }
 
+document.addEventListener('DOMContentLoaded', () => {
+  const csvBtn = document.querySelector('.ios-btn[onclick="exportChartCSV()"]') ||
+                 document.querySelector('button.ios-btn i.fa-file-csv')?.parentElement;
+  if (csvBtn && !csvBtn.hasAttribute('data-csv-handler')) {
+      csvBtn.setAttribute('onclick', 'showSensorLogFiles()');
+      csvBtn.setAttribute('data-csv-handler', 'true');
+  }
+});
+
 async function showFileList() {
   Swal.close();
   const files = await fetchSDCardFiles();
