@@ -5119,21 +5119,17 @@ async function downloadAllCSV() {
     const files = await fetchSDCardFiles();
     let sensorRows = [];
     let hasHeader = false;
-
     if (files && files.length > 0) {
       for (const file of files) {
         const csvText = await fetchCSVContent(file);
         if (!csvText) continue;
         const lines = csvText.trim().split('\n');
-        if (!hasHeader) {
-          sensorRows.push(lines[0]);
-          hasHeader = true;
-        }
+        if (!hasHeader) { sensorRows.push(lines[0]); hasHeader = true; }
         sensorRows.push(...lines.slice(1));
       }
     }
 
-    // Lấy data manual từ Sheets
+    // Lấy data manual
     const manualRes  = await fetch(`${SHEETS_URL}?action=getManual&days=365`);
     const manualData = await manualRes.json();
     let manualRows   = [];
@@ -5141,7 +5137,14 @@ async function downloadAllCSV() {
       const headers = Object.keys(manualData[0]);
       manualRows.push(headers.join(','));
       manualData.forEach(r => {
-        manualRows.push(headers.map(h => r[h] || '').join(','));
+        // Format lại ngày lấy mẫu
+        const ngay = r['Ngay lay mau'] ? new Date(r['Ngay lay mau']).toLocaleDateString('vi-VN') : '';
+        const row  = headers.map(h => {
+          if (h === 'Ngay lay mau') return ngay;
+          const val = (r[h] || '').toString().replace(/,/g, ';');
+          return val;
+        });
+        manualRows.push(row.join(','));
       });
     }
 
@@ -5154,13 +5157,12 @@ async function downloadAllCSV() {
       ...manualRows
     ].join('\n');
 
-    const BOM      = '\uFEFF';
-    const blob     = new Blob([BOM + allContent], { type: 'text/csv;charset=utf-8;' });
-    const url      = URL.createObjectURL(blob);
-    const a        = document.createElement('a');
-    const dateStr  = new Date().toISOString().slice(0, 10);
-    a.href         = url;
-    a.download     = `RRIV_TongHop_${dateStr}.csv`;
+    const BOM     = '\uFEFF';
+    const blob    = new Blob([BOM + allContent], { type: 'text/csv;charset=utf-8;' });
+    const url     = URL.createObjectURL(blob);
+    const a       = document.createElement('a');
+    a.href        = url;
+    a.download    = `RRIV_TongHop_${new Date().toISOString().slice(0,10)}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -5182,99 +5184,85 @@ async function showSensorLogFiles() {
   }
 
   Swal.fire({
-    title: 'Đang tải danh sách file...',
-    didOpen: () => Swal.showLoading(),
-    allowOutsideClick: false
-  });
-
-  const files = await fetchSDCardFiles();
-  
-  if (!files || files.length === 0) {
-    Swal.fire({
-      icon: 'info',
-      title: 'Không có dữ liệu',
-      text: 'Chưa có dữ liệu nào được lưu.',
-      confirmButtonText: 'Đóng'
-    });
-    return;
-  }
-
-  // Tạo danh sách nút bấm cho từng ngày
-  const fileButtons = files.map(file => `
-    <div style="display:flex;gap:8px;margin:5px 0;">
-      <button class="swal2-confirm swal2-styled" 
-        style="flex:1;margin:0;" 
-        onclick="downloadCSVFromSheets('${file}')">
-        📄 ${file}
-      </button>
-      <button class="swal2-confirm swal2-styled" 
-        style="background:#6c757d;margin:0;padding:6px 12px;" 
-        onclick="previewCSVFromSheets('${file}')">
-        👁 Xem
-      </button>
-    </div>
-  `).join('');
-
-  Swal.fire({
-    title: 'Chọn file CSV cần tải',
+    title: 'Xuất dữ liệu',
     html: `
-      <div style="margin-bottom:10px;">
-        <button class="btn btn-success btn-sm w-100" onclick="downloadAllCSV()">
-          ⬇️ Tải tất cả (${files.length} ngày)
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
+        <button class="swal2-confirm swal2-styled w-100" 
+          style="background:#185FA5;" 
+          onclick="Swal.close();downloadAllCSV()">
+          📦 Tải tổng hợp (cảm biến + phân tích tay)
         </button>
-      </div>
-      <div style="max-height:400px;overflow-y:auto;">
-        ${fileButtons}
+        <hr style="margin:4px 0;">
+        <div style="font-size:12px;color:#adb5bd;text-align:left;margin-bottom:4px;">Hoặc chọn từng file:</div>
+        <button class="swal2-confirm swal2-styled w-100" 
+          style="background:#0f6e56;" 
+          onclick="showFileList()">
+          📄 Xem danh sách file cảm biến
+        </button>
+        <button class="swal2-confirm swal2-styled w-100" 
+          style="background:#534ab7;" 
+          onclick="Swal.close();downloadManualCSV()">
+          📋 Tải riêng data phân tích tay
+        </button>
       </div>`,
     showConfirmButton: false,
-    showCloseButton: true,
-    focusConfirm: false
+    showCloseButton: true
   });
 }
-// Đảm bảo nút CSV gọi hàm đúng
-document.addEventListener('DOMContentLoaded', () => {
-  const csvBtn = document.querySelector('.ios-btn[onclick="exportChartCSV()"]') ||
-                 document.querySelector('button.ios-btn i.fa-file-csv')?.parentElement;
-  if (csvBtn && !csvBtn.hasAttribute('data-csv-handler')) {
-      csvBtn.setAttribute('onclick', 'showSensorLogFiles()');
-      csvBtn.setAttribute('data-csv-handler', 'true');
-  }
-});
 
-
-
-// Hàm xóa file trên SD card (chỉ admin mới có quyền)
-async function deleteSDCardFile(fileName) {
-  // Kiểm tra quyền: chỉ admin hoặc người có quyền quản lý mới xóa
-  if (!currentUser || currentUser.role !== 'admin') {
-    showToast('Bạn không có quyền xóa file CSV', 'error');
+async function showFileList() {
+  Swal.close();
+  const files = await fetchSDCardFiles();
+  if (!files || files.length === 0) {
+    Swal.fire({ icon:'info', title:'Không có file', text:'Chưa có dữ liệu cảm biến.' });
     return;
   }
-
-  const confirm = await Swal.fire({
-    title: 'Xác nhận xóa',
-    text: `Bạn có chắc chắn muốn xóa file ${fileName}?`,
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonText: 'Xóa',
-    cancelButtonText: 'Hủy'
+  const fileButtons = files.map(file => `
+    <div style="display:flex;gap:8px;margin:5px 0;">
+      <button class="swal2-confirm swal2-styled" style="flex:1;margin:0;" onclick="downloadCSVFromSheets('${file}')">📄 ${file}</button>
+      <button class="swal2-confirm swal2-styled" style="background:#6c757d;margin:0;padding:6px 12px;" onclick="previewCSVFromSheets('${file}')">👁 Xem</button>
+    </div>`).join('');
+  Swal.fire({
+    title: 'Danh sách file cảm biến',
+    html: `<div style="max-height:400px;overflow-y:auto;">${fileButtons}</div>`,
+    showConfirmButton: false,
+    showCloseButton: true
   });
-  if (!confirm.isConfirmed) return;
-
-  try {
-    const response = await fetch(`${GATEWAY_URL}/api/sd/delete?file=${encodeURIComponent(fileName)}`, {
-      method: 'DELETE'
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    showToast(`Đã xóa file ${fileName}`, 'success');
-    // Sau khi xóa, làm mới danh sách file
-    await showSensorLogFiles(); // gọi lại để cập nhật
-  } catch (err) {
-    console.error('Lỗi xóa file:', err);
-    showToast(`Không thể xóa file ${fileName}`, 'error');
-  }
 }
 
+async function downloadManualCSV() {
+  try {
+    showToast('⏳ Đang tải data phân tích tay...', 'info');
+    const res  = await fetch(`${SHEETS_URL}?action=getManual&days=365`);
+    const rows = await res.json();
+    if (!rows || rows.length === 0) {
+      showToast('Chưa có data phân tích tay', 'error');
+      return;
+    }
+    const headers = Object.keys(rows[0]);
+    const csv = [
+      headers.join(','),
+      ...rows.map(r => headers.map(h => {
+        if (h === 'Ngay lay mau') return new Date(r[h]).toLocaleDateString('vi-VN');
+        return (r[h] || '').toString().replace(/,/g, ';');
+      }).join(','))
+    ].join('\n');
+
+    const BOM  = '\uFEFF';
+    const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `ManualData_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('✅ Đã tải ManualData.csv', 'success');
+  } catch(err) {
+    showToast('❌ Lỗi: ' + err.message, 'error');
+  }
+}
 
 // Kiểm tra quyền chung
 function hasPermission(feature) {
