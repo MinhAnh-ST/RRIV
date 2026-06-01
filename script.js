@@ -1848,6 +1848,7 @@ window.onload = async function() {
   
   overlay.style.display = 'none';
   showMainDashboard();
+    setTimeout(() => acvUpdateSummary(), 2000);
   console.log('🎯 Khởi động hoàn tất');
 };
 
