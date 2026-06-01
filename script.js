@@ -1523,7 +1523,7 @@ async function renderAllCharts() {
   try {
       // Thu thập dữ liệu cho tất cả trạm
       const allData = [];
-      for (const station of stations) {
+      for (const station of stations.filter(s => !s.isNDVI)) {
           const data = await getHistoricalDataFromSD(station.id, range);
           if (!data || !data.labels || data.labels.length === 0) {
               console.warn(`Không có dữ liệu cho trạm ${station.id}, dùng mảng rỗng.`);
