@@ -6738,9 +6738,9 @@ async function mdLoadFields() {
       {id:'Mg',   name:'Magie (Mg)',         unit:'meq/100g', ref_min:0.5, ref_max:3,   required:false},
       {id:'humus',name:'Hàm lượng mùn',     unit:'%',        ref_min:1,   ref_max:5,   required:false},
     ];
+    localStorage.setItem('rriv_manual_fields', JSON.stringify(manualFields));
   }
 }
-
 // ------------------------------------------------------------------
 // RENDER TOÀN BỘ TRANG (chỉ gọi 1 lần hoặc khi thật sự cần)
 // ------------------------------------------------------------------
