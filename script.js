@@ -6579,105 +6579,49 @@ function aixBuildContext() {
 }
 
 
-// ── Gửi message ──
-async function aixSend() {
-  const inp = document.getElementById('aix-input');
-  const btn = document.getElementById('aix-send-btn');
-  if (!inp) return;
 
-  const text = inp.value.trim();
-  if (!text) return;
+aixShowTyping();
 
-  inp.value = '';
-  if (btn) { btn.disabled = true; }
-  aixAppendMsg('user', text);
+try {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer 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'
+    },
+    body: JSON.stringify({
+      model: 'llama-3.1-8b-instant',
+      max_tokens: 1000,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...aixHistory
+      ]
+    })
+  });
 
-  // Phân loại câu hỏi
-  const qType = aixClassifyQuestion(text);
+  aixHideTyping();
 
-  // Build system prompt theo loại câu hỏi
-  const systemPrompt = aixBuildSystemPrompt(qType);
-
-  // Build context cảm biến (chỉ thêm nếu câu hỏi liên quan nông nghiệp)
-  let userContent = text;
-  if (qType !== 'off_topic') {
-    const ctx = aixBuildContext();
-    userContent = ctx + '\n\nCâu hỏi của người dùng: ' + text;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    aixAppendMsg('assistant', `⚠️ Lỗi Groq (${res.status}): ${err.error?.message || 'Không xác định'}`);
+    return;
   }
 
-  // Thêm vào history (giới hạn 10 lượt để tránh token quá dài)
-  aixHistory.push({ role: 'user', content: userContent });
-  if (aixHistory.length > 10) aixHistory = aixHistory.slice(-10);
+  const data  = await res.json();
+  const reply = data.choices?.[0]?.message?.content || '❌ Không có phản hồi';
 
-  aixShowTyping();
+  aixHistory.push({ role: 'assistant', content: reply });
+  aixAppendMsg('assistant', reply);
+  aixUpdateBadge('groq');
 
-  try {
-    // Gửi lên gateway - gateway sẽ forward tới Groq/Claude/GPT
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer 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'
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        max_tokens: 1000,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...aixHistory
-        ]
-      })
-    });
-
-    aixHideTyping();
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      aixAppendMsg('assistant', `❌ Lỗi Groq (${res.status}): ${err.error?.message || 'Không xác định'}`);
-      return;
-    }
-
-    const data  = await res.json();
-    const reply = data.choices?.[0]?.message?.content || '❌ Không có phản hồi';
-    aixHistory.push({ role: 'assistant', content: reply });
-    aixAppendMsg('assistant', reply);
-    aixProvider = 'groq';
-    aixUpdateBadge('groq');
-
-  } catch(err) {
-    aixHideTyping();
-    console.error('[AIX] Groq error:', err);
-    aixAppendMsg('assistant', '❌ Không kết nối được Groq. Kiểm tra internet.');
-  } finally {
-    if (btn) btn.disabled = false;
-    if (inp) inp.focus();
-  }
+} catch(err) {
+  aixHideTyping();
+  console.error('[AIX] Groq error:', err);
+  aixAppendMsg('assistant', '❌ Không kết nối được Groq. Kiểm tra kết nối internet.');
+} finally {
+  if (btn) btn.disabled = false;
+  if (inp) inp.focus();
 }
-
-
-// ── Gửi câu hỏi nhanh ──
-function aixQuick(q) {
-  const inp = document.getElementById('aix-input');
-  if (inp) inp.value = q;
-  aixSend();
-}
-
-
-// ── Xóa chat ──
-function aixClearChat() {
-  aixHistory = [];
-  const box = document.getElementById('aix-messages');
-  if (!box) return;
-  box.innerHTML = `
-    <div class="aix-msg-ai">
-      <div class="aix-avatar" style="width:26px;height:26px;font-size:13px;flex-shrink:0;">🌾</div>
-      <div>
-        <div class="aix-msg-lbl">MIA Assistant · Sẵn sàng</div>
-        <div class="aix-bubble-ai">Chat đã được xóa. Hãy đặt câu hỏi mới về hệ thống quan trắc của bạn!</div>
-      </div>
-    </div>`;
-}
-
 // =============================================================
 // HƯỚNG DẪN ÁP DỤNG:
 // 1. Tìm dòng:  // ==================== NHAP LIEU THU CONG ====================
