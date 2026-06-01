@@ -5187,26 +5187,31 @@ async function showSensorLogFiles() {
     title: 'Xuất dữ liệu',
     html: `
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
-        <button class="swal2-confirm swal2-styled w-100" 
-          style="background:#185FA5;" 
-          onclick="Swal.close();downloadAllCSV()">
+        <button id="swal-btn-all" class="swal2-confirm swal2-styled w-100" style="background:#185FA5;">
           📦 Tải tổng hợp (cảm biến + phân tích tay)
         </button>
         <hr style="margin:4px 0;">
         <div style="font-size:12px;color:#adb5bd;text-align:left;margin-bottom:4px;">Hoặc chọn từng file:</div>
-        <button class="swal2-confirm swal2-styled w-100" 
-          style="background:#0f6e56;" 
-          onclick="showFileList()">
+        <button id="swal-btn-list" class="swal2-confirm swal2-styled w-100" style="background:#0f6e56;">
           📄 Xem danh sách file cảm biến
         </button>
-        <button class="swal2-confirm swal2-styled w-100" 
-          style="background:#534ab7;" 
-          onclick="Swal.close();downloadManualCSV()">
+        <button id="swal-btn-manual" class="swal2-confirm swal2-styled w-100" style="background:#534ab7;">
           📋 Tải riêng data phân tích tay
         </button>
       </div>`,
     showConfirmButton: false,
-    showCloseButton: true
+    showCloseButton: true,
+    didOpen: () => {
+      document.getElementById('swal-btn-all').addEventListener('click', () => {
+        Swal.close(); downloadAllCSV();
+      });
+      document.getElementById('swal-btn-list').addEventListener('click', () => {
+        showFileList();
+      });
+      document.getElementById('swal-btn-manual').addEventListener('click', () => {
+        Swal.close(); downloadManualCSV();
+      });
+    }
   });
 }
 
