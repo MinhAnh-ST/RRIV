@@ -1658,8 +1658,10 @@ function showAllCharts() {
   hideAllViews();
   const allChartsView = document.getElementById('allChartsView');
   if (allChartsView) {
-    allChartsView.style.display = 'block';
+   // allChartsView.style.display = 'block';
 // bỏ dòng flexDirection
+    allChartsView.style.display = 'flex';
+    allChartsView.style.flexDirection = 'column';
     currentTimeRange = 'week';
     historicalCache = {};
     ['day','week','month'].forEach(r => {
