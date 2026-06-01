@@ -2493,3 +2493,15 @@ footer, .footer, [class*="copyright"] {
 @keyframes wh-spin {
   to { transform: rotate(360deg); }
 }
+#manualDataView {
+  position: fixed;
+  top: 50px;
+  left: 0;
+  right: 0;
+  bottom: 40px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #f5f7fa;
+  padding: 12px;
+  box-sizing: border-box;
+}
