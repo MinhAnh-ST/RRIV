@@ -2469,3 +2469,23 @@ footer, .footer, [class*="copyright"] {
 @keyframes wh-spin {
   to { transform: rotate(360deg); }
 }
+/* Fix scroll cho allChartsView */
+.acv-summary {
+  flex-shrink: 0;
+}
+
+.acv-charts {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.acv-charts::-webkit-scrollbar {
+  width: 6px;
+}
+
+.acv-charts::-webkit-scrollbar-thumb {
+  background: #cbd5e0;
+  border-radius: 3px;
+}
