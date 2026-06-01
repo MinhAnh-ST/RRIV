@@ -2162,13 +2162,12 @@ footer, .footer, [class*="copyright"] {
   top: 50px;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: 40px;
   display: flex;
   flex-direction: column;
   background: #f5f7fa;
   overflow: hidden;
 }
-
 .all-charts-header {
   flex-shrink: 0;
   padding: 10px 16px;
