@@ -6529,7 +6529,7 @@ function aixBuildContext() {
 
   const nd = (typeof lastNDVIData !== 'undefined') ? lastNDVIData : null;
 
-  if (nd && nd.valid && (nd.S2_411.red !== 0 || nd.S2_411.nir !== 0)) {
+if (nd && nd.valid && (nd.S2_411.red !== 0 || nd.S2_411.nir !== 0 || nd.S2_411.angle !== 0 || nd.S2_412.angle !== 0 || nd.node_battery > 0)) {
     const r411 = nd.S2_411.red,  n411 = nd.S2_411.nir;
     const r412 = nd.S2_412.red,  n412 = nd.S2_412.nir;
     const nd411 = (n411 - r411) / ((n411 + r411) || 0.001);
