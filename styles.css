@@ -2162,11 +2162,35 @@ footer, .footer, [class*="copyright"] {
   top: 50px;
   left: 0;
   right: 0;
-  bottom: 40px;
+  bottom: 40px;   /* ← sửa từ 0 thành 40px */
   display: flex;
   flex-direction: column;
   background: #f5f7fa;
-  overflow: hidden;
+  overflow: hidden;  /* giữ hidden, để .acv-charts scroll */
+}
+.acv-topbar {
+  flex-shrink: 0;
+}
+
+.acv-summary {
+  flex-shrink: 0;
+}
+
+.acv-charts {
+  flex: 1;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  min-height: 0;
+}
+
+.acv-charts::-webkit-scrollbar {
+  width: 6px;
+}
+
+.acv-charts::-webkit-scrollbar-thumb {
+  background: #cbd5e0;
+  border-radius: 3px;
 }
 .all-charts-header {
   flex-shrink: 0;
@@ -2468,24 +2492,4 @@ footer, .footer, [class*="copyright"] {
 
 @keyframes wh-spin {
   to { transform: rotate(360deg); }
-}
-/* Fix scroll cho allChartsView */
-.acv-summary {
-  flex-shrink: 0;
-}
-
-.acv-charts {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-}
-
-.acv-charts::-webkit-scrollbar {
-  width: 6px;
-}
-
-.acv-charts::-webkit-scrollbar-thumb {
-  background: #cbd5e0;
-  border-radius: 3px;
 }
