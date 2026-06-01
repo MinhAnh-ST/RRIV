@@ -6522,7 +6522,8 @@ function aixBuildContext() {
 
   const nd = (typeof lastNDVIData !== 'undefined') ? lastNDVIData : null;
 
-  if (nd && nd.valid && (nd.S2_411.red !== 0 || nd.S2_411.nir !== 0)) {
+  //if (nd && nd.valid && (nd.S2_411.red !== 0 || nd.S2_411.nir !== 0)) {
+  if (nd && nd.valid && (nd.S2_411.red !== 0 || nd.S2_411.nir !== 0 || nd.S2_411.angle !== 0 || nd.S2_412.angle !== 0 || nd.node_battery > 0)) {
     const r411 = nd.S2_411.red,  n411 = nd.S2_411.nir;
     const r412 = nd.S2_412.red,  n412 = nd.S2_412.nir;
     const nd411 = (n411 - r411) / ((n411 + r411) || 0.001);
@@ -6549,9 +6550,15 @@ function aixBuildContext() {
       s.isNDVI || s.id === 'NDVI_NODE' ||
       (typeof s.id === 'number' && s.id === 7)
     );
+    //if (ndviSt && ndviSt.data && ndviSt.data.length >= 7 &&
+        //(ndviSt.data[0] !== 0 || ndviSt.data[6] !== 0)) {
+
     if (ndviSt && ndviSt.data && ndviSt.data.length >= 7 &&
-        (ndviSt.data[0] !== 0 || ndviSt.data[6] !== 0)) {
+    (ndviSt.data[0] !== 0 || ndviSt.data[2] !== 0 || ndviSt.data[5] !== 0 || ndviSt.data[6] !== 0 || ndviSt.data[7] > 0)) {
       const d = ndviSt.data;
+      ctx += `  S2-411: RED=${r411.toFixed(4)} W/m²·nm | NIR=${n411.toFixed(4)} W/m²·nm | Góc=${nd.S2_411.angle.toFixed(1)}°\n`;
+      ctx += `  S2-412: RED=${r412.toFixed(4)} W/m²·nm | NIR=${n412.toFixed(4)} W/m²·nm | Góc=${nd.S2_412.angle.toFixed(1)}°\n`;
+      ctx += `  NDVI=${avg.toFixed(4)} (RED=0 có thể do đo ban đêm hoặc góc cảm biến)\n`;
       ctx += `  S2-411: RED=${d[0]} | NIR=${d[1]} | Góc=${d[2]}°\n`;
       ctx += `  S2-412: RED=${d[3]} | NIR=${d[4]} | Góc=${d[5]}°\n`;
       ctx += `  NDVI=${d[6]}\n`;
