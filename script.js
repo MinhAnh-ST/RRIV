@@ -11,7 +11,7 @@ let currentRefreshInterval = 1000;
 let lastNDVIData = null; // Biến lưu trữ dữ liệu NDVI mới nhất
 
 
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwBRUFw0Fh-dzK-AH7h2Jqrp-M2ff3rabgJcmrA-lIZkKbHY91KNN4ltlLkuvGNlsmEqA/exec';
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzXf7lEQNJhA4oqo-u89tA0SkxBvtzZOAmPve7vjwPBW3YQ_H2rBq4TDbQBeD81gi2QzA/exec';
 
 
 let historicalStore = {}; 
@@ -5115,50 +5115,62 @@ async function downloadAllCSV() {
       allowOutsideClick: false
     });
 
+    // Lấy data cảm biến
     const files = await fetchSDCardFiles();
-    if (!files || files.length === 0) {
-      Swal.fire('Không có dữ liệu', '', 'info');
-      return;
-    }
-
-    let allRows   = [];
+    let sensorRows = [];
     let hasHeader = false;
 
-    for (const file of files) {
-      const csvText = await fetchCSVContent(file);
-      if (!csvText) continue;
-
-      const lines = csvText.trim().split('\n');
-      if (!hasHeader) {
-        allRows.push(lines[0]); // header chỉ lấy 1 lần
-        hasHeader = true;
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const csvText = await fetchCSVContent(file);
+        if (!csvText) continue;
+        const lines = csvText.trim().split('\n');
+        if (!hasHeader) {
+          sensorRows.push(lines[0]);
+          hasHeader = true;
+        }
+        sensorRows.push(...lines.slice(1));
       }
-      allRows.push(...lines.slice(1)); // bỏ header của các file sau
     }
 
-    if (allRows.length <= 1) {
-      Swal.fire('Không có dữ liệu', '', 'info');
-      return;
+    // Lấy data manual từ Sheets
+    const manualRes  = await fetch(`${SHEETS_URL}?action=getManual&days=365`);
+    const manualData = await manualRes.json();
+    let manualRows   = [];
+    if (manualData && manualData.length > 0) {
+      const headers = Object.keys(manualData[0]);
+      manualRows.push(headers.join(','));
+      manualData.forEach(r => {
+        manualRows.push(headers.map(h => r[h] || '').join(','));
+      });
     }
+
+    // Gộp 2 bảng
+    const allContent = [
+      '=== DỮ LIỆU CẢM BIẾN ===',
+      ...sensorRows,
+      '',
+      '=== DỮ LIỆU PHÂN TÍCH TAY (N P K ...) ===',
+      ...manualRows
+    ].join('\n');
 
     const BOM      = '\uFEFF';
-    const csvText  = allRows.join('\n');
-    const blob     = new Blob([BOM + csvText], { type: 'text/csv;charset=utf-8;' });
+    const blob     = new Blob([BOM + allContent], { type: 'text/csv;charset=utf-8;' });
     const url      = URL.createObjectURL(blob);
     const a        = document.createElement('a');
     const dateStr  = new Date().toISOString().slice(0, 10);
     a.href         = url;
-    a.download     = `RRIV_AllData_${dateStr}.csv`;
+    a.download     = `RRIV_TongHop_${dateStr}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
     Swal.close();
-    showToast(`✅ Đã tải ${files.length} ngày dữ liệu`, 'success');
+    showToast('✅ Đã tải file tổng hợp', 'success');
 
   } catch(err) {
-    console.error('Lỗi tải tất cả CSV:', err);
+    console.error(err);
     Swal.fire('Lỗi', err.message, 'error');
   }
 }
