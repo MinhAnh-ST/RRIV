@@ -7131,11 +7131,15 @@ async function mdSave() {
     const payload = { date, label, depth, note, values };
     console.log('[mdSave] Payload:', JSON.stringify(payload));
 
-    const res = await fetch(`${GATEWAY_URL}/api/manual-data`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    const res = await fetch(SHEETS_URL, {
+  method: 'POST',
+  headers: { 'Content-Type': 'text/plain' },
+  body: JSON.stringify({
+    action: 'saveManual',
+    date, label, depth, note, values,
+    fields: manualFields
+  })
+});
 
     console.log('[mdSave] Response status:', res.status);
 
