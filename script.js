@@ -212,6 +212,9 @@ async function fetchRealDataFromGateway() {
     }
 
     updateAllDisplays(); // cập nhật bản đồ, grid, ...
+    if (document.getElementById('allChartsView')?.style.display !== 'none') {
+  acvUpdateSummary();
+}
 
     // Nếu đang ở trang chi tiết trạm -> cập nhật biểu đồ và sidebar
     if (currentStation && document.getElementById('stationDetail')?.style.display !== 'none') {
