@@ -1665,6 +1665,7 @@ function showAllCharts() {
 // bỏ dòng flexDirection
     allChartsView.style.display = 'flex';
     allChartsView.style.flexDirection = 'column';
+    setTimeout(() => acvUpdateSummary(), 500);
     currentTimeRange = 'week';
     historicalCache = {};
     ['day','week','month'].forEach(r => {
