@@ -6037,36 +6037,52 @@ async function sendAIMessage(question) {
   if (input) input.value = '';
   if (btn) btn.disabled = true;
   appendAIMsg('user', text);
+
   const msgs = document.getElementById('aiChatMessages');
   const typing = document.createElement('div');
   typing.id = 'aiTyping';
   typing.className = 'd-flex justify-content-start mb-2';
   typing.innerHTML = `<div style="background:white;border:1px solid #e2e8f0;border-radius:18px;padding:10px 16px;color:#6c757d;font-size:0.85rem;"><i class="fas fa-robot text-success me-1"></i> Đang phân tích...</div>`;
   if (msgs) { msgs.appendChild(typing); msgs.scrollTop = msgs.scrollHeight; }
+
   aiChatHistory.push({ role: 'user', content: buildSensorContext() + '\n\nCau hoi: ' + text });
   if (aiChatHistory.length > 20) aiChatHistory = aiChatHistory.slice(-20);
+
   try {
-    const res = await fetch('/api/ai', {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ system: 'Ban la chuyen gia nong nghiep AI MIA. Phan tich du lieu cam bien va dua ra khuyen nghi cu the.', messages: aiChatHistory })
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer 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'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        max_tokens: 1000,
+        messages: [
+          { role: 'system', content: 'Ban la chuyen gia nong nghiep AI MIA. Phan tich du lieu cam bien va dua ra khuyen nghi cu the. Tra loi bang tieng Viet.' },
+          ...aiChatHistory
+        ]
+      })
     });
+
     document.getElementById('aiTyping')?.remove();
-    if (res.status === 404) {
-      appendAIMsg('assistant', '⚙️ Gateway chua co route /api/ai.\nUpload.');
-    } else if (!res.ok) {
-      const d = await res.json().catch(()=>({}));
-      appendAIMsg('assistant', '❌ Loi ' + res.status + ': ' + (d.error||'Khong xac dinh'));
-    } else {
-      const data = await res.json();
-      const reply = data.reply || '❌ Khong co phan hoi';
-      aiChatHistory.push({ role: 'assistant', content: reply });
-      appendAIMsg('assistant', reply);
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      appendAIMsg('assistant', `❌ Lỗi Groq (${res.status}): ${err.error?.message || 'Không xác định'}`);
+      return;
     }
+
+    const data  = await res.json();
+    const reply = data.choices?.[0]?.message?.content || '❌ Không có phản hồi';
+    aiChatHistory.push({ role: 'assistant', content: reply });
+    appendAIMsg('assistant', reply);
+
   } catch(err) {
     document.getElementById('aiTyping')?.remove();
-    appendAIMsg('assistant', '❌ Khong ket noi duoc Gateway.\nKiem tra Gateway dang chay.');
+    appendAIMsg('assistant', '❌ Không kết nối được Groq. Kiểm tra internet.');
   }
+
   if (btn) btn.disabled = false;
   if (input) input.focus();
 }
