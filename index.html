@@ -1104,312 +1104,279 @@
 
 <div id="aiExpertView" style="display:none;">
 <style>
-  #aiExpertView { background:#f0f2f5; }
-  .aix-wrap { display:grid; grid-template-columns:1fr 320px; height:auto; min-height:400px; gap:0; }
-  @media(max-width:800px){ .aix-wrap { grid-template-columns:1fr; } }
+  #aiExpertView {
+    height: 100vh;
+    overflow: hidden;
+    background: #0f1923;
+    display: flex;
+    flex-direction: column;
+  }
 
-  /* Chat */
-  .aix-chat { display:flex; flex-direction:column; background:#fff; border-right:0.5px solid #e2e8f0; }
-  .aix-chat-hdr { padding:10px 14px; border-bottom:0.5px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
-  .aix-chat-hdr-left { display:flex; align-items:center; gap:9px; }
-  .aix-avatar { width:34px; height:34px; border-radius:9px; background:#EAF3DE; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
-  .aix-title { font-size:13px; font-weight:500; color:#212529; }
-  .aix-sub { font-size:10px; color:#adb5bd; margin-top:1px; }
-  .aix-provider-badge { font-size:10px; padding:2px 8px; border-radius:20px; font-weight:500; }
-  .aix-badge-offline  { background:#f0f2f5; color:#6c757d; }
-  .aix-badge-groq     { background:#EAF3DE; color:#3B6D11; }
-  .aix-badge-anthropic{ background:#EEEDFE; color:#3C3489; }
-  .aix-badge-openai   { background:#E6F1FB; color:#0C447C; }
-  .aix-quick { padding:7px 12px; border-bottom:0.5px solid #f0f2f5; display:flex; gap:5px; flex-wrap:wrap; flex-shrink:0; }
-  .aix-qbtn { padding:3px 10px; border:0.5px solid #dee2e6; border-radius:20px; background:#f8f9fa; color:#495057; font-size:11px; cursor:pointer; transition:all .15s; }
-  .aix-qbtn:hover { background:#EAF3DE; border-color:#97C459; color:#3B6D11; }
-  .aix-messages { flex:1; padding:12px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; min-height:200px; }
-  .aix-msg-ai { display:flex; gap:8px; align-items:flex-start; }
-  .aix-bubble-ai { background:#f8f9fa; border:0.5px solid #e2e8f0; border-radius:10px 10px 10px 2px; padding:9px 12px; font-size:12px; color:#212529; line-height:1.65; max-width:85%; white-space:pre-wrap; }
-  .aix-msg-lbl { font-size:10px; color:#adb5bd; margin-bottom:3px; }
-  .aix-msg-tag { font-size:10px; padding:1px 7px; border-radius:10px; background:#EAF3DE; color:#3B6D11; margin-bottom:4px; display:inline-block; }
-  .aix-msg-user { display:flex; justify-content:flex-end; }
-  .aix-bubble-user { background:#185FA5; color:#E6F1FB; border-radius:10px 10px 2px 10px; padding:9px 12px; font-size:12px; line-height:1.65; max-width:80%; white-space:pre-wrap; }
-  .aix-typing { display:flex; gap:4px; align-items:center; padding:8px 12px; }
-  .aix-dot { width:7px; height:7px; border-radius:50%; background:#adb5bd; animation:aix-bounce .8s infinite; }
+  /* Header xanh tối */
+  .aix-topbar {
+    padding: 10px 16px;
+    background: #0f1923;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .aix-topbar-left { display: flex; align-items: center; gap: 10px; }
+  .aix-logo {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, #2d6a0f, #4CAF50);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .aix-topbar-title { font-size: 14px; font-weight: 600; color: #fff; }
+  .aix-topbar-sub   { font-size: 10px; color: rgba(255,255,255,.4); margin-top: 1px; }
+  .aix-live-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #4CAF50;
+    box-shadow: 0 0 0 3px rgba(76,175,80,.25);
+    animation: livePulse 2s infinite;
+  }
+  @keyframes livePulse {
+    0%,100% { box-shadow: 0 0 0 3px rgba(76,175,80,.25); }
+    50%      { box-shadow: 0 0 0 6px rgba(76,175,80,.1); }
+  }
+  .aix-topbar-right { display: flex; align-items: center; gap: 8px; }
+  .aix-clear-btn {
+    background: rgba(255,255,255,.08); border: none;
+    color: rgba(255,255,255,.5); font-size: 11px;
+    padding: 5px 10px; border-radius: 6px; cursor: pointer;
+    transition: all .15s;
+  }
+  .aix-clear-btn:hover { background: rgba(255,255,255,.15); color: #fff; }
+
+  /* Stats bar */
+  .aix-stats {
+    display: flex; gap: 6px; padding: 8px 14px;
+    background: #0f1923; flex-shrink: 0;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+    overflow-x: auto;
+  }
+  .aix-stat-chip {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 8px; padding: 5px 10px;
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .aix-stat-chip.warn { border-color: rgba(255,152,0,.4); background: rgba(255,152,0,.08); }
+  .aix-stat-chip.danger { border-color: rgba(220,53,69,.4); background: rgba(220,53,69,.08); }
+  .aix-stat-chip.ok { border-color: rgba(76,175,80,.4); background: rgba(76,175,80,.08); }
+  .aix-stat-label { font-size: 10px; color: rgba(255,255,255,.4); }
+  .aix-stat-val   { font-size: 12px; font-weight: 600; color: #fff; }
+
+  /* Quick buttons */
+  .aix-quick {
+    padding: 8px 14px; background: #0f1923;
+    display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+  }
+  .aix-qbtn {
+    padding: 5px 12px;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 20px;
+    background: rgba(255,255,255,.05);
+    color: rgba(255,255,255,.7);
+    font-size: 11px; cursor: pointer; transition: all .15s;
+  }
+  .aix-qbtn:hover {
+    background: rgba(76,175,80,.2);
+    border-color: rgba(76,175,80,.5);
+    color: #fff;
+  }
+
+  /* Messages */
+  .aix-messages {
+    flex: 1; padding: 14px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 12px;
+    background: #141e2b;
+    min-height: 0;
+  }
+  .aix-msg-ai { display: flex; gap: 9px; align-items: flex-start; }
+  .aix-avatar-ai {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: linear-gradient(135deg, #2d6a0f, #4CAF50);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0;
+  }
+  .aix-bubble-ai {
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 4px 12px 12px 12px;
+    padding: 10px 14px;
+    font-size: 12.5px; color: rgba(255,255,255,.88);
+    line-height: 1.7; max-width: 85%;
+    white-space: pre-wrap;
+  }
+  .aix-msg-lbl { font-size: 10px; color: rgba(255,255,255,.3); margin-bottom: 4px; }
+  .aix-msg-user { display: flex; justify-content: flex-end; }
+  .aix-bubble-user {
+    background: linear-gradient(135deg, #1565c0, #0288d1);
+    border-radius: 12px 4px 12px 12px;
+    padding: 10px 14px;
+    font-size: 12.5px; color: #fff;
+    line-height: 1.7; max-width: 80%;
+    white-space: pre-wrap;
+  }
+
+  /* Typing */
+  .aix-typing { display: flex; gap: 4px; align-items: center; padding: 10px 14px; }
+  .aix-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: rgba(76,175,80,.6);
+    animation: aix-bounce .8s infinite;
+  }
   .aix-dot:nth-child(2){ animation-delay:.15s; }
   .aix-dot:nth-child(3){ animation-delay:.3s; }
-  @keyframes aix-bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
-  .aix-input-wrap { padding:10px 12px; border-top:0.5px solid #e2e8f0; display:flex; gap:8px; align-items:center; flex-shrink:0; }
-  .aix-input { flex:1; border:0.5px solid #dee2e6; border-radius:8px; padding:7px 12px; font-size:12px; background:#f8f9fa; color:#212529; outline:none; }
-  .aix-input:focus { border-color:#185FA5; background:#fff; }
-  .aix-send { width:34px; height:34px; border:none; border-radius:8px; background:#185FA5; color:#fff; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .aix-hint { font-size:10px; color:#adb5bd; text-align:center; padding:3px 0 0; }
+  @keyframes aix-bounce {
+    0%,60%,100%{ transform:translateY(0) }
+    30%{ transform:translateY(-6px) }
+  }
 
-  /* Config sidebar */
-  .aix-config { background:#f8f9fa; padding:12px; display:flex; flex-direction:column; gap:10px; overflow-y:auto; }
-  .aix-cfg-card { background:#fff; border:0.5px solid #e2e8f0; border-radius:10px; overflow:hidden; }
-  .aix-cfg-hdr { padding:9px 13px; border-bottom:0.5px solid #f0f2f5; font-size:12px; font-weight:500; color:#212529; display:flex; align-items:center; gap:7px; }
-  .aix-cfg-body { padding:12px 13px; display:flex; flex-direction:column; gap:9px; }
-  .aix-opt-row { display:flex; gap:7px; }
-  .aix-opt { flex:1; padding:8px 4px; border:0.5px solid #dee2e6; border-radius:8px; background:#f8f9fa; text-align:center; cursor:pointer; transition:all .15s; }
-  .aix-opt:hover { border-color:#adb5bd; }
-  .aix-opt.sel-offline  { border-color:#adb5bd; background:#f0f2f5; }
-  .aix-opt.sel-groq     { border-color:#3B6D11; background:#EAF3DE; }
-  .aix-opt.sel-paid     { border-color:#534AB7; background:#EEEDFE; }
-  .aix-opt-icon { font-size:17px; margin-bottom:2px; }
-  .aix-opt-name { font-size:11px; font-weight:500; color:#212529; }
-  .aix-opt-desc { font-size:9px; color:#adb5bd; margin-top:1px; }
-  .aix-lbl { font-size:10px; color:#adb5bd; text-transform:uppercase; letter-spacing:.3px; margin-bottom:3px; }
-  .aix-field { width:100%; border:0.5px solid #dee2e6; border-radius:6px; padding:6px 9px; font-size:12px; background:#f8f9fa; color:#212529; outline:none; }
-  .aix-field:focus { border-color:#185FA5; background:#fff; }
-  .aix-btn-row { display:flex; gap:6px; }
-  .aix-btn-save { flex:1; padding:7px; border:none; border-radius:6px; background:#185FA5; color:#fff; font-size:12px; cursor:pointer; }
-  .aix-btn-test { padding:7px 10px; border:0.5px solid #dee2e6; border-radius:6px; background:#f8f9fa; color:#495057; font-size:12px; cursor:pointer; }
-  .aix-status { display:flex; align-items:center; gap:6px; padding:7px 10px; border-radius:8px; font-size:11px; }
-  .aix-status-ok  { background:#EAF3DE; color:#3B6D11; }
-  .aix-status-err { background:#FCEBEB; color:#A32D2D; }
-  .aix-status-off { background:#f0f2f5; color:#6c757d; }
-  .aix-sdot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
-  .aix-sdot-ok  { background:#3B6D11; }
-  .aix-sdot-err { background:#A32D2D; }
-  .aix-sdot-off { background:#adb5bd; }
-  /* section ẩn/hiện */
-  .aix-section { display:none; }
-  .aix-section.show { display:flex; flex-direction:column; gap:9px; }
-
-  /* Bổ sung để có thanh cuộn dọc - giữ nguyên mọi style cũ */
-#aiExpertView {
-  display: block;            /* khi hiển thị, đảm bảo chiều cao có hiệu lực */
-  height: 100vh;            /* hoặc chiều cao mong muốn, ví dụ 100% */
-  overflow: hidden;         /* tránh scroll kép */
-}
-
-.aix-wrap {
-  height: 100%;
-  min-height: 0;            /* cho phép các thành phần con co lại */
-}
-
-.aix-chat, .aix-config {
-  height: 100%;
-  min-height: 0;            /* quan trọng trong flexbox */
-}
-
-.aix-messages {
-  overflow-y: auto;         /* thanh cuộn dọc cho chat */
-  flex: 1 1 auto;
-  min-height: 0;            /* bắt buộc để overflow hoạt động */
-}
-
-.aix-config {
-  overflow-y: auto;         /* thanh cuộn cho panel cấu hình */
-  min-height: 0;
-}
+  /* Input */
+  .aix-input-wrap {
+    padding: 12px 14px;
+    background: #0f1923;
+    border-top: 1px solid rgba(255,255,255,.08);
+    display: flex; gap: 8px; align-items: center;
+    flex-shrink: 0;
+  }
+  .aix-input {
+    flex: 1;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 10px; padding: 9px 14px;
+    font-size: 13px; color: #fff; outline: none;
+    transition: all .2s;
+  }
+  .aix-input::placeholder { color: rgba(255,255,255,.3); }
+  .aix-input:focus {
+    border-color: rgba(76,175,80,.6);
+    background: rgba(255,255,255,.1);
+  }
+  .aix-send {
+    width: 38px; height: 38px; border: none; border-radius: 10px;
+    background: linear-gradient(135deg, #2d6a0f, #4CAF50);
+    color: #fff; font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .2s; flex-shrink: 0;
+  }
+  .aix-send:hover { transform: scale(1.05); }
+  .aix-send:disabled { opacity: .4; }
+  .aix-hint {
+    font-size: 10px; color: rgba(255,255,255,.25);
+    text-align: center; padding: 4px 0 2px;
+    background: #0f1923;
+    flex-shrink: 0;
+  }
 </style>
 
-<div class="aix-wrap">
-
-  <!-- Panel chat -->
-  <div class="aix-chat">
-    <div class="aix-chat-hdr">
-      <div class="aix-chat-hdr-left">
-        <div class="aix-avatar">🌾</div>
-        <div>
-          <div class="aix-title">Chuyên gia nông nghiệp AI</div>
-          <div class="aix-sub">Phân tích dữ liệu cảm biến thực tế từ 6 trạm</div>
-        </div>
-      </div>
-      <span class="aix-provider-badge aix-badge-offline" id="aix-badge">Offline</span>
+<!-- Top bar -->
+<div class="aix-topbar">
+  <div class="aix-topbar-left">
+    <div class="aix-logo">🌾</div>
+    <div>
+      <div class="aix-topbar-title">Chuyên gia tư vấn nông nghiệp</div>
+      <div class="aix-topbar-sub">Phân tích dữ liệu thực tế · 6 trạm quan trắc</div>
     </div>
-
-    <div class="aix-quick">
-      <span style="font-size:10px;color:#adb5bd;line-height:2.2;">Hỏi nhanh:</span>
-      <button class="aix-qbtn" onclick="aixQuick('tuoi nuoc')">💧 Tưới nước</button>
-      <button class="aix-qbtn" onclick="aixQuick('bon phan')">🌿 Bón phân</button>
-      <button class="aix-qbtn" onclick="aixQuick('canh bao bat thuong')">⚠️ Cảnh báo</button>
-      <button class="aix-qbtn" onclick="aixQuick('ndvi suc khoe cay')">🌱 NDVI</button>
-      <button class="aix-qbtn" onclick="aixQuick('bao cao tong hop')">📊 Tổng hợp</button>
-    </div>
-
-    <div class="aix-messages" id="aix-messages">
-      <div class="aix-msg-ai">
-        <div class="aix-avatar" style="width:26px;height:26px;font-size:13px;flex-shrink:0;">🌾</div>
-        <div>
-          <div class="aix-msg-lbl">Chuyên gia AI · Sẵn sàng</div>
-          <div class="aix-bubble-ai">Xin chào! Tôi sẽ phân tích dữ liệu từ các trạm cảm biến và đưa ra khuyến nghị canh tác cụ thể.
-
-H»i tôi về tưới nước, bón phân, sức khỏe cây trồng hoặc cảnh báo bất thường!</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="aix-input-wrap">
-      <input class="aix-input" id="aix-input" placeholder="Hỏi về tưới nước, bón phân, sâu bệnh..."
-        onkeydown="if(event.key==='Enter'){event.preventDefault();aixSend();}">
-      <button class="aix-send" onclick="aixSend()" id="aix-send-btn">
-        <i class="fas fa-paper-plane" style="font-size:13px;"></i>
-      </button>
-    </div>
-    <div class="aix-hint" id="aix-hint">Dữ liệu cảm biến được gửi kèm tự động · Offline = không cần internet</div>
+    <div class="aix-live-dot" title="Đang kết nối dữ liệu"></div>
   </div>
-<!--
-  
-  <div class="aix-config">
-
-    
-    <div class="aix-cfg-card">
-      <div class="aix-cfg-hdr">
-        <i class="fas fa-microchip" style="color:#3B6D11;font-size:12px;"></i>
-        Chọn engine AI
-      </div>
-      <div class="aix-cfg-body">
-        <div class="aix-opt-row">
-          <div class="aix-opt sel-offline" id="aix-opt-offline" onclick="aixSelectProvider('offline')">
-            <div class="aix-opt-icon">🔌</div>
-            <div class="aix-opt-name">Offline</div>
-            <div class="aix-opt-desc">Không cần internet</div>
-          </div>
-          <div class="aix-opt" id="aix-opt-groq" onclick="aixSelectProvider('groq')">
-            <div class="aix-opt-icon">⚡</div>
-            <div class="aix-opt-name">Groq Free</div>
-            <div class="aix-opt-desc">Miễn phí · Nhanh</div>
-          </div>
-          <div class="aix-opt" id="aix-opt-paid" onclick="aixSelectProvider('paid')">
-            <div class="aix-opt-icon">✨</div>
-            <div class="aix-opt-name">Trả phí</div>
-            <div class="aix-opt-desc">Claude / GPT</div>
-          </div>
-        </div>
-
-       
-        <div class="aix-section" id="aix-sec-groq">
-          <div>
-            <div class="aix-lbl">Groq API Key <a href="https://console.groq.com" target="_blank" style="font-size:10px;color:#185FA5;">Lấy miễn phí →</a></div>
-            <input class="aix-field" id="aix-groq-key" type="password" placeholder="gsk_••••••••••••">
-          </div>
-          <div>
-            <div class="aix-lbl">Model</div>
-            <select class="aix-field" id="aix-groq-model">
-              <option value="llama-3.1-8b-instant">llama-3.1-8b (Nhanh nhất)</option>
-              <option value="llama-3.3-70b-versatile">llama-3.3-70b (Tốt hơn)</option>
-              <option value="mixtral-8x7b-32768">mixtral-8x7b (Cân bằng)</option>
-            </select>
-          </div>
-          <div class="aix-btn-row">
-            <button class="aix-btn-test" onclick="aixTest()">🔌 Test</button>
-            <button class="aix-btn-save" onclick="aixSaveConfig('groq')">💾 Lưu lên Gateway</button>
-          </div>
-        </div>
-
-      
-        <div class="aix-section" id="aix-sec-paid">
-          <div>
-            <div class="aix-lbl">Provider</div>
-            <select class="aix-field" id="aix-paid-provider">
-              <option value="anthropic">Anthropic (Claude)</option>
-              <option value="openai">OpenAI (GPT)</option>
-            </select>
-          </div>
-          <div>
-            <div class="aix-lbl">API Key</div>
-            <input class="aix-field" id="aix-paid-key" type="password" placeholder="sk-ant-••• hoặc sk-•••">
-          </div>
-          <div>
-            <div class="aix-lbl">Model</div>
-            <select class="aix-field" id="aix-paid-model">
-              <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 (Rẻ nhất)</option>
-              <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
-              <option value="gpt-4o-mini">gpt-4o-mini</option>
-              <option value="gpt-4o">gpt-4o</option>
-            </select>
-          </div>
-          <div class="aix-btn-row">
-            <button class="aix-btn-test" onclick="aixTest()">🔌 Test</button>
-            <button class="aix-btn-save" style="background:#534AB7;" onclick="aixSaveConfig('paid')">💾 Lưu</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-  
-    <div class="aix-cfg-card">
-      <div class="aix-cfg-hdr">
-        <i class="fas fa-signal" style="color:#185FA5;font-size:12px;"></i>
-        Trạng thái kết nối
-      </div>
-      <div class="aix-cfg-body">
-        <div class="aix-status aix-status-off" id="aix-status-main">
-          <div class="aix-sdot aix-sdot-off"></div>
-          <span id="aix-status-text">Chưa cấu hình API</span>
-        </div>
-        <div class="aix-status aix-status-ok">
-          <div class="aix-sdot aix-sdot-ok"></div>
-          Offline AI: Luôn sẵn sàng (fallback)
-        </div>
-        <div style="font-size:10px;color:#adb5bd;line-height:1.5;">
-          Khi API không phản hồi, tự động chuyển về offline rule-based.
-        </div>
-      </div>
-    </div>
-
-   
-    <div class="aix-cfg-card">
-      <div class="aix-cfg-hdr">
-        <i class="fas fa-book" style="color:#854F0B;font-size:12px;"></i>
-        Hướng dẫn lấy Groq key
-      </div>
-      <div class="aix-cfg-body" style="font-size:11px;color:#6c757d;line-height:1.7;gap:4px;">
-        <div>1. Vào <strong>console.groq.com</strong></div>
-        <div>2. Đăng ký miễn phí (không cần thẻ)</div>
-        <div>3. Vào <strong>API Keys → Create key</strong></div>
-        <div>4. Copy key bắt đầu bằng <code style="background:#f0f2f5;padding:1px 5px;border-radius:4px;">gsk_</code></div>
-        <div>5. Paste vào ô trên → Lưu lên Gateway</div>
-      </div>
-    </div>
-
+  <div class="aix-topbar-right">
+    <button class="aix-clear-btn" onclick="aixClearChat()">
+      <i class="fas fa-trash-alt me-1"></i>Xóa chat
+    </button>
   </div>
 </div>
-</div>
--->
-    </main>
-  </div>
 
-  <!-- AI CHAT PANEL -->
-  <div id="aiChatView" style="display:none; position:fixed; top:50px; left:0; right:0; bottom:40px; background:#f8f9fa; flex-direction:column; z-index:500;">
-    <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-white border-bottom shadow-sm" style="flex-shrink:0;">
-      <div class="d-flex align-items-center gap-2">
-        <i class="fas fa-robot text-success fs-5"></i>
-        <div>
-          <div class="fw-bold" style="font-size:0.95rem;">Trợ lý AI Nông nghiệp</div>
-          <div class="text-muted" style="font-size:0.72rem;">Tư vấn dựa trên dữ liệu cảm biến thực tế</div>
-        </div>
-      </div>
-      <div class="d-flex gap-2">
-        <button class="btn btn-sm btn-outline-success" onclick="sendQuickQuestion('Phân tích tổng hợp tất cả trạm')"><i class="fas fa-chart-bar me-1"></i>Phân tích</button>
-        <button class="btn btn-sm btn-outline-secondary" onclick="clearAIChat()"><i class="fas fa-trash me-1"></i>Xóa</button>
-        <button class="btn btn-sm btn-secondary" onclick="showMainDashboard()"><i class="fas fa-times"></i></button>
-      </div>
-    </div>
-    <div class="px-3 py-2 bg-white border-bottom" style="flex-shrink:0;">
-      <div class="d-flex gap-2 flex-wrap">
-        <span class="text-muted small me-1">Hỏi nhanh:</span>
-        <button class="btn btn-outline-success btn-sm rounded-pill" onclick="sendQuickQuestion('tuoi nuoc')">💧 Tưới nước</button>
-        <button class="btn btn-outline-primary btn-sm rounded-pill" onclick="sendQuickQuestion('bon phan')">🌿 Bón phân</button>
-        <button class="btn btn-outline-warning btn-sm rounded-pill" onclick="sendQuickQuestion('canh bao')">⚠️ Cảnh báo</button>
-        <button class="btn btn-outline-info btn-sm rounded-pill" onclick="sendQuickQuestion('ndvi suc khoe cay')">🌱 NDVI</button>
-        <button class="btn btn-outline-danger btn-sm rounded-pill" onclick="sendQuickQuestion('bao cao tong hop')">📊 Tổng hợp</button>
-      </div>
-    </div>
-    <div id="aiChatMessages" style="flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px;">
-      <div class="text-center text-muted py-4">
-        <i class="fas fa-robot fa-2x mb-2 d-block text-success opacity-50"></i>
-        <div class="fw-bold">Xin chào! Tôi là trợ lý AI nông nghiệp MIA.</div>
-        <div class="small">Tôi sẽ phân tích dữ liệu cảm biến và đưa ra khuyến nghị về tưới nước, bón phân cho cây trồng.</div>
-      </div>
-    </div>
-    <div class="px-3 py-2 bg-white border-top" style="flex-shrink:0;">
-      <div class="d-flex gap-2">
-        <input type="text" id="aiChatInput" class="form-control" placeholder="Hỏi về tưới nước, bón phân, sức khỏe cây trồng..." onkeydown="if(event.key==='Enter'){event.preventDefault();sendAIMessage();}">
-        <button class="btn btn-success px-3" onclick="sendAIMessage()" id="aiSendBtn"><i class="fas fa-paper-plane"></i></button>
-      </div>
-      <div class="text-muted mt-1" style="font-size:0.7rem;">Dữ liệu cảm biến được gửi tự động kèm câu hỏi</div>
+<!-- Stats bar - hiện số liệu nhanh từ cảm biến -->
+<div class="aix-stats" id="aix-stats-bar">
+  <div class="aix-stat-chip">
+    <span>📡</span>
+    <div>
+      <div class="aix-stat-label">Trạm online</div>
+      <div class="aix-stat-val" id="aix-s-online">—/6</div>
     </div>
   </div>
+  <div class="aix-stat-chip" id="aix-chip-vwc">
+    <span>💧</span>
+    <div>
+      <div class="aix-stat-label">VWC trung bình</div>
+      <div class="aix-stat-val" id="aix-s-vwc">—%</div>
+    </div>
+  </div>
+  <div class="aix-stat-chip" id="aix-chip-ph">
+    <span>⚗️</span>
+    <div>
+      <div class="aix-stat-label">pH trung bình</div>
+      <div class="aix-stat-val" id="aix-s-ph">—</div>
+    </div>
+  </div>
+  <div class="aix-stat-chip" id="aix-chip-ec">
+    <span>⚡</span>
+    <div>
+      <div class="aix-stat-label">EC trung bình</div>
+      <div class="aix-stat-val" id="aix-s-ec">— dS/m</div>
+    </div>
+  </div>
+  <div class="aix-stat-chip" id="aix-chip-temp">
+    <span>🌡️</span>
+    <div>
+      <div class="aix-stat-label">Nhiệt độ đất</div>
+      <div class="aix-stat-val" id="aix-s-temp">—°C</div>
+    </div>
+  </div>
+  <div class="aix-stat-chip" id="aix-chip-ndvi">
+    <span>🌿</span>
+    <div>
+      <div class="aix-stat-label">NDVI</div>
+      <div class="aix-stat-val" id="aix-s-ndvi">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick buttons -->
+<div class="aix-quick">
+  <span style="font-size:10px;color:rgba(255,255,255,.3);line-height:2.2;">Hỏi nhanh:</span>
+  <button class="aix-qbtn" onclick="aixQuick('Hiện tại có cần tưới nước không?')">💧 Tưới nước</button>
+  <button class="aix-qbtn" onclick="aixQuick('Nên bón phân gì lúc này?')">🌿 Bón phân</button>
+  <button class="aix-qbtn" onclick="aixQuick('Có cảnh báo bất thường nào không?')">⚠️ Cảnh báo</button>
+  <button class="aix-qbtn" onclick="aixQuick('Phân tích chỉ số NDVI hiện tại')">🌱 NDVI</button>
+  <button class="aix-qbtn" onclick="aixQuick('Báo cáo tổng hợp tất cả trạm')">📊 Tổng hợp</button>
+  <button class="aix-qbtn" onclick="aixQuick('Trạm nào đang có vấn đề nhất?')">🔍 Chẩn đoán</button>
+</div>
+
+<!-- Messages -->
+<div class="aix-messages" id="aix-messages">
+  <div class="aix-msg-ai">
+    <div class="aix-avatar-ai">🌾</div>
+    <div>
+      <div class="aix-msg-lbl">Chuyên gia tư vấn · Sẵn sàng</div>
+      <div class="aix-bubble-ai">Xin chào bà con! Tôi hỗ trợ phân tích dữ liệu quan trắc đất và đưa ra khuyến nghị canh tác phù hợp với vùng Đông Nam Bộ.
+
+Hãy hỏi tôi về tưới nước, bón phân, sâu bệnh hoặc tình trạng các trạm cảm biến.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Input -->
+<div class="aix-input-wrap">
+  <input class="aix-input" id="aix-input"
+    placeholder="Hỏi về tưới nước, bón phân, sâu bệnh..."
+    onkeydown="if(event.key==='Enter'){event.preventDefault();aixSend();}">
+  <button class="aix-send" onclick="aixSend()" id="aix-send-btn">
+    <i class="fas fa-paper-plane" style="font-size:13px;"></i>
+  </button>
+</div>
+<div class="aix-hint" id="aix-hint">
+  Dữ liệu cảm biến gửi kèm tự động · Phân tích dựa trên ngưỡng chuẩn Đông Nam Bộ
+</div>
+
+</div>
 
   <!-- Footer Section -->
   <footer class="footer text-center py-3 bg-light border-top">
