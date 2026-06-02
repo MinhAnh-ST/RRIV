@@ -6734,7 +6734,7 @@ async function aixSend() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer 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'
+        'Authorization': 'Bearer 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'
       },
       body: JSON.stringify({
         model: 'llama-3.1-8b-instant',
