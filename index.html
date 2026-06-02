@@ -1113,7 +1113,7 @@
   }
   .aix-wrap {
     display: grid;
-    grid-template-columns: 1fr;  /* bỏ cột config bên phải */
+    grid-template-columns: 1fr;
     height: 100%;
     min-height: 0;
   }
@@ -1146,7 +1146,6 @@
   .aix-provider-badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 500; }
   .aix-badge-offline  { background: #f0f2f5; color: #6c757d; }
   .aix-badge-groq     { background: #EAF3DE; color: #3B6D11; }
-
   .aix-quick {
     padding: 7px 12px;
     border-bottom: 0.5px solid #f0f2f5;
@@ -1162,19 +1161,16 @@
     font-size: 11px; cursor: pointer; transition: all .15s;
   }
   .aix-qbtn:hover { background: #EAF3DE; border-color: #97C459; color: #3B6D11; }
-
-  /* ĐÂY LÀ CHỖ QUAN TRỌNG - thanh cuộn */
   .aix-messages {
     flex: 1 1 auto;
-    min-height: 0;        /* bắt buộc để overflow hoạt động */
-    overflow-y: auto;     /* thanh cuộn dọc */
+    min-height: 0;
+    overflow-y: auto;
     padding: 12px;
     display: flex;
     flex-direction: column;
     gap: 10px;
     background: #f8f9fa;
   }
-
   .aix-msg-ai  { display: flex; gap: 8px; align-items: flex-start; }
   .aix-bubble-ai {
     background: #fff;
@@ -1194,7 +1190,6 @@
     font-size: 12px; line-height: 1.65;
     max-width: 80%; white-space: pre-wrap;
   }
-
   .aix-typing { display: flex; gap: 4px; align-items: center; padding: 8px 12px; }
   .aix-dot {
     width: 7px; height: 7px; border-radius: 50%;
@@ -1207,7 +1202,6 @@
     0%,60%,100%{ transform: translateY(0) }
     30%{ transform: translateY(-6px) }
   }
-
   .aix-input-wrap {
     padding: 10px 12px;
     border-top: 0.5px solid #e2e8f0;
@@ -1230,109 +1224,74 @@
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
-  .aix-hint { font-size: 10px; color: #adb5bd; text-align: center; padding: 3px 0 4px; background: #fff; flex-shrink: 0; }
+  .aix-hint {
+    font-size: 10px; color: #adb5bd;
+    text-align: center; padding: 3px 0 4px;
+    background: #fff; flex-shrink: 0;
+  }
 </style>
 
-<!-- Top bar -->
-<div class="aix-topbar">
-  <div class="aix-topbar-left">
-    <div class="aix-logo">🌾</div>
-    <div>
-      <div class="aix-topbar-title">Chuyên gia tư vấn nông nghiệp</div>
-      <div class="aix-topbar-sub">Phân tích dữ liệu thực tế · 6 trạm quan trắc</div>
+<div class="aix-wrap">
+  <div class="aix-chat">
+
+    <!-- Header -->
+    <div class="aix-chat-hdr">
+      <div class="aix-chat-hdr-left">
+        <div class="aix-avatar">🌾</div>
+        <div>
+          <div class="aix-title">Chuyên gia tư vấn nông nghiệp</div>
+          <div class="aix-sub">Phân tích dữ liệu thực tế · 6 trạm quan trắc</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="aix-provider-badge aix-badge-groq" id="aix-badge">Groq AI</span>
+        <button onclick="aixClearChat()"
+          style="background:#f8f9fa;border:0.5px solid #dee2e6;border-radius:6px;
+                 padding:4px 10px;font-size:11px;color:#6c757d;cursor:pointer;">
+          <i class="fas fa-trash-alt me-1"></i>Xóa
+        </button>
+      </div>
     </div>
-    <div class="aix-live-dot" title="Đang kết nối dữ liệu"></div>
-  </div>
-  <div class="aix-topbar-right">
-    <button class="aix-clear-btn" onclick="aixClearChat()">
-      <i class="fas fa-trash-alt me-1"></i>Xóa chat
-    </button>
+
+    <!-- Quick buttons -->
+    <div class="aix-quick">
+      <span style="font-size:10px;color:#adb5bd;line-height:2.2;">Hỏi nhanh:</span>
+      <button class="aix-qbtn" onclick="aixQuick('Hiện tại có cần tưới nước không?')">💧 Tưới nước</button>
+      <button class="aix-qbtn" onclick="aixQuick('Nên bón phân gì lúc này?')">🌿 Bón phân</button>
+      <button class="aix-qbtn" onclick="aixQuick('Có cảnh báo bất thường nào không?')">⚠️ Cảnh báo</button>
+      <button class="aix-qbtn" onclick="aixQuick('Phân tích chỉ số NDVI hiện tại')">🌱 NDVI</button>
+      <button class="aix-qbtn" onclick="aixQuick('Báo cáo tổng hợp tất cả trạm')">📊 Tổng hợp</button>
+      <button class="aix-qbtn" onclick="aixQuick('Trạm nào đang có vấn đề nhất?')">🔍 Chẩn đoán</button>
+    </div>
+
+    <!-- Messages -->
+    <div class="aix-messages" id="aix-messages">
+      <div class="aix-msg-ai">
+        <div class="aix-avatar" style="width:26px;height:26px;font-size:13px;flex-shrink:0;">🌾</div>
+        <div>
+          <div class="aix-msg-lbl">Chuyên gia tư vấn · Sẵn sàng</div>
+          <div class="aix-bubble-ai">Xin chào bà con! Tôi hỗ trợ phân tích dữ liệu quan trắc đất và đưa ra khuyến nghị canh tác phù hợp với vùng Đông Nam Bộ.
+
+Hãy hỏi về tưới nước, bón phân, sâu bệnh hoặc tình trạng các trạm cảm biến.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="aix-input-wrap">
+      <input class="aix-input" id="aix-input"
+        placeholder="Hỏi về tưới nước, bón phân, sâu bệnh..."
+        onkeydown="if(event.key==='Enter'){event.preventDefault();aixSend();}">
+      <button class="aix-send" onclick="aixSend()" id="aix-send-btn">
+        <i class="fas fa-paper-plane" style="font-size:13px;"></i>
+      </button>
+    </div>
+    <div class="aix-hint" id="aix-hint">
+      Dữ liệu cảm biến gửi kèm tự động · Phân tích theo ngưỡng chuẩn Đông Nam Bộ
+    </div>
+
   </div>
 </div>
-
-<!-- Stats bar - hiện số liệu nhanh từ cảm biến -->
-<div class="aix-stats" id="aix-stats-bar">
-  <div class="aix-stat-chip">
-    <span>📡</span>
-    <div>
-      <div class="aix-stat-label">Trạm online</div>
-      <div class="aix-stat-val" id="aix-s-online">—/6</div>
-    </div>
-  </div>
-  <div class="aix-stat-chip" id="aix-chip-vwc">
-    <span>💧</span>
-    <div>
-      <div class="aix-stat-label">VWC trung bình</div>
-      <div class="aix-stat-val" id="aix-s-vwc">—%</div>
-    </div>
-  </div>
-  <div class="aix-stat-chip" id="aix-chip-ph">
-    <span>⚗️</span>
-    <div>
-      <div class="aix-stat-label">pH trung bình</div>
-      <div class="aix-stat-val" id="aix-s-ph">—</div>
-    </div>
-  </div>
-  <div class="aix-stat-chip" id="aix-chip-ec">
-    <span>⚡</span>
-    <div>
-      <div class="aix-stat-label">EC trung bình</div>
-      <div class="aix-stat-val" id="aix-s-ec">— dS/m</div>
-    </div>
-  </div>
-  <div class="aix-stat-chip" id="aix-chip-temp">
-    <span>🌡️</span>
-    <div>
-      <div class="aix-stat-label">Nhiệt độ đất</div>
-      <div class="aix-stat-val" id="aix-s-temp">—°C</div>
-    </div>
-  </div>
-  <div class="aix-stat-chip" id="aix-chip-ndvi">
-    <span>🌿</span>
-    <div>
-      <div class="aix-stat-label">NDVI</div>
-      <div class="aix-stat-val" id="aix-s-ndvi">—</div>
-    </div>
-  </div>
-</div>
-
-<!-- Quick buttons -->
-<div class="aix-quick">
-  <span style="font-size:10px;color:rgba(255,255,255,.3);line-height:2.2;">Hỏi nhanh:</span>
-  <button class="aix-qbtn" onclick="aixQuick('Hiện tại có cần tưới nước không?')">💧 Tưới nước</button>
-  <button class="aix-qbtn" onclick="aixQuick('Nên bón phân gì lúc này?')">🌿 Bón phân</button>
-  <button class="aix-qbtn" onclick="aixQuick('Có cảnh báo bất thường nào không?')">⚠️ Cảnh báo</button>
-  <button class="aix-qbtn" onclick="aixQuick('Phân tích chỉ số NDVI hiện tại')">🌱 NDVI</button>
-  <button class="aix-qbtn" onclick="aixQuick('Báo cáo tổng hợp tất cả trạm')">📊 Tổng hợp</button>
-  <button class="aix-qbtn" onclick="aixQuick('Trạm nào đang có vấn đề nhất?')">🔍 Chẩn đoán</button>
-</div>
-
-<!-- Messages -->
-<div class="aix-messages" id="aix-messages">
-  <div class="aix-msg-ai">
-    <div class="aix-avatar-ai">🌾</div>
-    <div>
-      <div class="aix-msg-lbl">Chuyên gia tư vấn · Sẵn sàng</div>
-      <div class="aix-bubble-ai">Xin chào bà con! Tôi hỗ trợ phân tích dữ liệu quan trắc đất và đưa ra khuyến nghị canh tác phù hợp với vùng Đông Nam Bộ.
-
-Hãy hỏi tôi về tưới nước, bón phân, sâu bệnh hoặc tình trạng các trạm cảm biến.</div>
-    </div>
-  </div>
-</div>
-
-<!-- Input -->
-<div class="aix-input-wrap">
-  <input class="aix-input" id="aix-input"
-    placeholder="Hỏi về tưới nước, bón phân, sâu bệnh..."
-    onkeydown="if(event.key==='Enter'){event.preventDefault();aixSend();}">
-  <button class="aix-send" onclick="aixSend()" id="aix-send-btn">
-    <i class="fas fa-paper-plane" style="font-size:13px;"></i>
-  </button>
-</div>
-<div class="aix-hint" id="aix-hint">
-  Dữ liệu cảm biến gửi kèm tự động · Phân tích dựa trên ngưỡng chuẩn Đông Nam Bộ
-</div>
-
 </div>
 
   <!-- Footer Section -->
