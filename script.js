@@ -6141,6 +6141,29 @@ function showAIExpert() {
   const v = document.getElementById('aiExpertView');
   if (v) v.style.display = 'block';
   if (typeof updateNavActive === 'function') updateNavActive('aiExpertView');
+  // Cập nhật stats bar
+  setTimeout(() => {
+    const active = stations.filter(s => !s.isNDVI && s.data && s.data.length >= 8 &&
+      (s.data[0]!==0 || s.data[1]!==0 || s.data[3]!==0));
+    const n = active.length;
+    const avg = k => n ? (active.reduce((s,st)=>s+parseFloat(st.data[k]||0),0)/n).toFixed(1) : '—';
+    const set = (id, v) => { const e=document.getElementById(id); if(e) e.textContent=v; };
+    set('aix-s-online', n + '/6');
+    set('aix-s-vwc',    avg(1) + '%');
+    set('aix-s-ph',     avg(0));
+    set('aix-s-ec',     parseFloat(avg(2)).toFixed(2) + ' dS/m');
+    set('aix-s-temp',   avg(3) + '°C');
+    if (typeof lastNDVIData !== 'undefined' && lastNDVIData && lastNDVIData.valid) {
+      const r=lastNDVIData.S2_411.red, ni=lastNDVIData.S2_411.nir;
+      if (r+ni > 0) {
+        const nd = ((ni-r)/(ni+r||0.001)).toFixed(3);
+        set('aix-s-ndvi', nd);
+      }
+    }
+    const vwc = parseFloat(avg(1));
+    const chip = document.getElementById('aix-chip-vwc');
+    if (chip) chip.className = 'aix-stat-chip ' + (vwc<20?'danger':vwc<30?'warn':'ok');
+  }, 300);
   // Load config từ gateway
   aixLoadConfig();
 }
