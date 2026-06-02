@@ -6751,7 +6751,7 @@ async function aixSend() {
     const month = now.getMonth() + 1;
     const season = (month >= 5 && month <= 10) ? 'mùa mưa' : 'mùa khô';
     const timeOfDay = (hour >= 6 && hour < 12) ? 'buổi sáng' : (hour >= 12 && hour < 18) ? 'buổi chiều' : 'ban đêm';
-    const timeCtx = \`\n\n=== THỜI GIAN HIỆN TẠI ===\nThời điểm: \${now.toLocaleString('vi-VN')} (\${timeOfDay})\nMùa vụ: \${season} (tháng \${month})\nLưu ý: \${timeOfDay === 'ban đêm' ? 'Cảm biến ánh sáng/NDVI không có giá trị ban đêm' : 'Dữ liệu cảm biến ánh sáng hợp lệ'}\`;
+    const timeCtx = `\n\n=== THỜI GIAN HIỆN TẠI ===\nThời điểm: ${now.toLocaleString('vi-VN')} (${timeOfDay})\nMùa vụ: ${season} (tháng ${month})\nLưu ý: ${timeOfDay === 'ban đêm' ? 'Cảm biến ánh sáng/NDVI không có giá trị ban đêm' : 'Dữ liệu cảm biến ánh sáng hợp lệ'}`;
     userContent = ctx + analysisText + timeCtx + '\n\nCâu hỏi của người dùng: ' + text;
   }
 
