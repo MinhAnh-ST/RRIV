@@ -7401,3 +7401,360 @@ async function mdLoadHistory() {
     el.innerHTML = `<div class="text-center text-muted py-4">Lỗi tải dữ liệu: ${e.message}</div>`;
   }
 }
+
+
+
+// ================================================================
+// SMART ALERT SYSTEM - Tự động phân tích & cảnh báo thông minh
+// ================================================================
+
+(function initSmartAlert() {
+
+  // ── CSS ──
+  const style = document.createElement('style');
+  style.textContent = `
+    #sa-widget {
+      position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+      display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+      pointer-events: none;
+    }
+    #sa-btn {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: linear-gradient(135deg, #2d6a0f 0%, #4CAF50 100%);
+      border: none; cursor: pointer; pointer-events: all;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 16px rgba(45,106,15,0.4);
+      transition: transform .2s, box-shadow .2s;
+      position: relative;
+    }
+    #sa-btn:hover { transform: scale(1.08); }
+    #sa-btn svg { width: 22px; height: 22px; fill: white; }
+    #sa-badge {
+      position: absolute; top: -4px; right: -4px;
+      background: #dc3545; color: white;
+      border-radius: 50%; width: 18px; height: 18px;
+      font-size: 10px; font-weight: 700;
+      display: none; align-items: center; justify-content: center;
+      border: 2px solid white;
+    }
+    #sa-panel {
+      background: #fff; border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      width: 340px; max-height: 480px;
+      display: none; flex-direction: column;
+      overflow: hidden; pointer-events: all;
+      border: 1px solid #e9ecef;
+      animation: saSlideIn .2s ease;
+    }
+    @keyframes saSlideIn {
+      from { opacity:0; transform:translateY(12px) scale(.97); }
+      to   { opacity:1; transform:translateY(0) scale(1); }
+    }
+    #sa-panel.open { display: flex; }
+    .sa-header {
+      padding: 12px 14px 10px;
+      background: linear-gradient(135deg, #2d6a0f 0%, #4CAF50 100%);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .sa-header-title { color: white; font-size: 13px; font-weight: 600; }
+    .sa-header-sub { color: rgba(255,255,255,.75); font-size: 10px; margin-top: 1px; }
+    .sa-close { background: rgba(255,255,255,.2); border: none; color: white;
+      width: 24px; height: 24px; border-radius: 50%; cursor: pointer; font-size: 14px; }
+    #sa-body { overflow-y: auto; padding: 10px; flex: 1; }
+    .sa-section-title {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .5px; color: #adb5bd; margin: 8px 0 5px;
+    }
+    .sa-card {
+      border-radius: 10px; padding: 9px 11px; margin-bottom: 6px;
+      display: flex; align-items: flex-start; gap: 9px;
+    }
+    .sa-card.urgent { background: #fde8e8; border-left: 3px solid #dc3545; }
+    .sa-card.warn   { background: #fff3e0; border-left: 3px solid #fd7e14; }
+    .sa-card.ok     { background: #e8f5e0; border-left: 3px solid #2d6a0f; }
+    .sa-card.info   { background: #e3f2fd; border-left: 3px solid #0d6efd; }
+    .sa-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .sa-text-title { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+    .sa-text-title.urgent { color: #b71c1c; }
+    .sa-text-title.warn   { color: #e65100; }
+    .sa-text-title.ok     { color: #2d6a0f; }
+    .sa-text-title.info   { color: #0d47a1; }
+    .sa-text-sub { font-size: 11px; color: #6c757d; line-height: 1.45; }
+    .sa-footer {
+      padding: 9px 12px; border-top: 1px solid #f0f0f0;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .sa-update-time { font-size: 10px; color: #adb5bd; }
+    .sa-ask-btn {
+      font-size: 11px; padding: 4px 10px; border-radius: 8px;
+      background: #2d6a0f; color: white; border: none; cursor: pointer;
+    }
+    .sa-empty { text-align: center; padding: 24px 10px; color: #adb5bd; font-size: 12px; }
+    .sa-pulse { animation: saPulse 2s infinite; }
+    @keyframes saPulse {
+      0%,100% { box-shadow: 0 4px 16px rgba(220,53,69,.4); }
+      50%      { box-shadow: 0 4px 24px rgba(220,53,69,.75); }
+    }
+    .sa-toast {
+      position: fixed; bottom: 80px; right: 20px; z-index: 9998;
+      background: #fff; border-radius: 12px; padding: 11px 14px;
+      box-shadow: 0 6px 24px rgba(0,0,0,.18);
+      display: flex; align-items: center; gap: 10px;
+      max-width: 300px; pointer-events: all; cursor: pointer;
+      border-left: 4px solid #dc3545;
+      animation: saToastIn .3s ease;
+      font-size: 12px; line-height: 1.4;
+    }
+    .sa-toast.warn { border-color: #fd7e14; }
+    @keyframes saToastIn {
+      from { opacity:0; transform: translateX(20px); }
+      to   { opacity:1; transform: translateX(0); }
+    }
+  `;
+  document.head.appendChild(style);
+
+  // ── HTML Widget ──
+  const widget = document.createElement('div');
+  widget.id = 'sa-widget';
+  widget.innerHTML = `
+    <div id="sa-panel">
+      <div class="sa-header">
+        <div>
+          <div class="sa-header-title">🌾 MIA Smart Alert</div>
+          <div class="sa-header-sub" id="sa-header-sub">Đang phân tích...</div>
+        </div>
+        <button class="sa-close" onclick="saToggle()">✕</button>
+      </div>
+      <div id="sa-body"><div class="sa-empty">⏳ Đang tải dữ liệu...</div></div>
+      <div class="sa-footer">
+        <span class="sa-update-time" id="sa-update-time">Chưa cập nhật</span>
+        <button class="sa-ask-btn" onclick="saAskAI()">💬 Hỏi AI chi tiết</button>
+      </div>
+    </div>
+    <button id="sa-btn" onclick="saToggle()" title="MIA Smart Alert">
+      <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+      <div id="sa-badge">0</div>
+    </button>
+  `;
+  document.body.appendChild(widget);
+
+  // ── State ──
+  let saLastAnalysis = null;
+  let saPanelOpen = false;
+  let saToastShown = false;
+
+  window.saToggle = function() {
+    saPanelOpen = !saPanelOpen;
+    document.getElementById('sa-panel').classList.toggle('open', saPanelOpen);
+    if (saPanelOpen) {
+      document.getElementById('sa-badge').style.display = 'none';
+      document.getElementById('sa-btn').classList.remove('sa-pulse');
+      saToastShown = true;
+    }
+  };
+
+  window.saAskAI = function() {
+    saToggle();
+    if (typeof showAIExpert === 'function') showAIExpert();
+    else if (typeof showAIChat === 'function') showAIChat();
+  };
+
+  // ── Phân tích dữ liệu ──
+  function saAnalyze() {
+    if (typeof stations === 'undefined' || !stations || stations.length === 0) return null;
+    const results = { urgent: [], warn: [], info: [], ok: [] };
+    const now = new Date();
+    const hour = now.getHours();
+    const month = now.getMonth() + 1;
+    const isDaytime = hour >= 6 && hour <= 18;
+    const isDrySeason = month >= 11 || month <= 4;
+
+    const active = stations.filter(s => !s.isNDVI && s.data && s.data.length >= 8 &&
+      (s.data[0] !== 0 || s.data[1] !== 0 || s.data[3] !== 0));
+
+    if (active.length === 0) {
+      results.info.push({ icon:'📡', title:'Chưa có dữ liệu',
+        sub:'Các trạm chưa gửi tín hiệu. Kiểm tra kết nối LoRa.' });
+      return results;
+    }
+
+    active.forEach(st => {
+      const ph=st.data[0], vwc=st.data[1], ec=st.data[2], temp=st.data[3];
+      const bat=parseFloat(st.data[7]), name=st.name;
+
+      if (vwc < 15)
+        results.urgent.push({icon:'🚨', title:`${name}: Hạn nặng!`, sub:`VWC=${vwc}% — Tưới ngay, cây đang stress nghiêm trọng`});
+      else if (vwc < 20)
+        results.warn.push({icon:'💧', title:`${name}: Cần tưới hôm nay`, sub:`VWC=${vwc}% — Tưới ${isDrySeason?'sáng sớm 5-7h':'trước khi mưa nếu có'}`});
+      else if (vwc > 65)
+        results.warn.push({icon:'🌊', title:`${name}: Quá ẩm`, sub:`VWC=${vwc}% — Kiểm tra thoát nước, nguy cơ thối rễ`});
+
+      if (ph > 0) {
+        if (ph < 4.5)
+          results.urgent.push({icon:'⚗️', title:`${name}: pH rất chua`, sub:`pH=${ph} — Bón vôi khẩn 2-3 tấn/ha`});
+        else if (ph < 5.0)
+          results.warn.push({icon:'⚗️', title:`${name}: pH chua`, sub:`pH=${ph} — Bón vôi 1-2 tấn/ha`});
+      }
+
+      if (ec > 2.0)
+        results.urgent.push({icon:'⚡', title:`${name}: EC nguy hiểm`, sub:`EC=${ec} dS/m — Dừng bón phân! Rửa mặn ngay`});
+      else if (ec > 1.5)
+        results.warn.push({icon:'⚡', title:`${name}: EC cao`, sub:`EC=${ec} dS/m — Hạn chế bón phân hóa học`});
+      else if (ec < 0.15 && ec > 0)
+        results.info.push({icon:'📊', title:`${name}: Đất nghèo dinh dưỡng`, sub:`EC=${ec} dS/m — Cần bổ sung phân hữu cơ + NPK`});
+
+      if (temp > 38)
+        results.urgent.push({icon:'🌡️', title:`${name}: Đất quá nóng`, sub:`T=${temp}°C — Tưới gốc ngay + che phủ`});
+      else if (temp > 35)
+        results.warn.push({icon:'🌡️', title:`${name}: Đất nóng`, sub:`T=${temp}°C — Tưới buổi sáng sớm`});
+
+      if (bat < 15)
+        results.urgent.push({icon:'🔋', title:`${name}: Pin nguy kịch`, sub:`Pin=${bat.toFixed(0)}% — Sạc ngay!`});
+      else if (bat < 25)
+        results.warn.push({icon:'🔋', title:`${name}: Pin yếu`, sub:`Pin=${bat.toFixed(0)}% — Cần sạc hôm nay`});
+    });
+
+    // NDVI ban ngày
+    if (isDaytime && typeof lastNDVIData !== 'undefined' && lastNDVIData && lastNDVIData.valid) {
+      const r411=lastNDVIData.S2_411.red, n411=lastNDVIData.S2_411.nir;
+      const r412=lastNDVIData.S2_412.red, n412=lastNDVIData.S2_412.nir;
+      if (r411+n411+r412+n412 > 0.001) {
+        const nd411=(n411-r411)/((n411+r411)||0.001);
+        const nd412=(n412-r412)/((n412+r412)||0.001);
+        const ndviAvg=(nd411+nd412)/2;
+        if (ndviAvg < 0.2)
+          results.warn.push({icon:'🌿', title:'NDVI thấp bất thường',
+            sub:`NDVI=${ndviAvg.toFixed(3)} — Cây yếu, kiểm tra sâu bệnh & thiếu N`});
+        else if (ndviAvg >= 0.5)
+          results.ok.push({icon:'✅', title:'Cây trồng phát triển tốt',
+            sub:`NDVI=${ndviAvg.toFixed(3)} — Sinh trưởng ổn định`});
+      }
+    }
+
+    // Tóm tắt tốt
+    if (results.urgent.length === 0 && results.warn.length === 0) {
+      const avgVwc = active.reduce((s,st)=>s+st.data[1],0)/active.length;
+      const avgPh  = active.reduce((s,st)=>s+st.data[0],0)/active.length;
+      results.ok.push({icon:'🌱', title:'Tất cả trạm bình thường',
+        sub:`VWC TB: ${avgVwc.toFixed(1)}% · pH TB: ${avgPh.toFixed(1)} · ${active.length} trạm online`});
+      if (isDrySeason && avgVwc < 35)
+        results.info.push({icon:'☀️', title:'Đang mùa khô',
+          sub:`Tưới 2-3 lần/tuần. VWC hiện tại: ${avgVwc.toFixed(1)}%`});
+    }
+
+    return results;
+  }
+
+  // ── Render panel ──
+  function saRender(results) {
+    if (!results) return;
+    const body   = document.getElementById('sa-body');
+    const badge  = document.getElementById('sa-badge');
+    const btn    = document.getElementById('sa-btn');
+    const sub    = document.getElementById('sa-header-sub');
+    const upTime = document.getElementById('sa-update-time');
+
+    const urgentCount = results.urgent.length;
+    const warnCount   = results.warn.length;
+    const totalAlert  = urgentCount + warnCount;
+
+    if (totalAlert > 0) {
+      badge.textContent = totalAlert > 9 ? '9+' : totalAlert;
+      badge.style.display = 'flex';
+      if (urgentCount > 0) {
+        btn.classList.add('sa-pulse');
+        btn.style.background = 'linear-gradient(135deg, #b71c1c 0%, #dc3545 100%)';
+      } else {
+        btn.classList.remove('sa-pulse');
+        btn.style.background = 'linear-gradient(135deg, #e65100 0%, #fd7e14 100%)';
+      }
+    } else {
+      badge.style.display = 'none';
+      btn.classList.remove('sa-pulse');
+      btn.style.background = 'linear-gradient(135deg, #2d6a0f 0%, #4CAF50 100%)';
+    }
+
+    sub.textContent = totalAlert > 0
+      ? `${urgentCount} khẩn · ${warnCount} cảnh báo`
+      : 'Tất cả bình thường ✓';
+    upTime.textContent = 'Cập nhật: ' + new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
+
+    const buildCards = (arr, cls) => arr.map(a => `
+      <div class="sa-card ${cls}">
+        <span class="sa-icon">${a.icon}</span>
+        <div>
+          <div class="sa-text-title ${cls}">${a.title}</div>
+          <div class="sa-text-sub">${a.sub}</div>
+        </div>
+      </div>`).join('');
+
+    let html = '';
+    if (results.urgent.length) html += '<div class="sa-section-title">🚨 Khẩn cấp</div>'  + buildCards(results.urgent,'urgent');
+    if (results.warn.length)   html += '<div class="sa-section-title">⚠️ Cảnh báo</div>'  + buildCards(results.warn,'warn');
+    if (results.info.length)   html += '<div class="sa-section-title">💡 Lưu ý</div>'     + buildCards(results.info,'info');
+    if (results.ok.length)     html += '<div class="sa-section-title">✅ Bình thường</div>'+ buildCards(results.ok,'ok');
+
+    body.innerHTML = html || '<div class="sa-empty">📡 Chưa có dữ liệu từ các trạm</div>';
+
+    if (!saPanelOpen && !saToastShown && totalAlert > 0) {
+      saShowToast(results);
+      saToastShown = true;
+    }
+  }
+
+  // ── Toast ──
+  function saShowToast(results) {
+    document.querySelectorAll('.sa-toast').forEach(t => t.remove());
+    const item = results.urgent[0] || results.warn[0];
+    if (!item) return;
+    const toast = document.createElement('div');
+    toast.className = 'sa-toast' + (results.urgent[0] ? '' : ' warn');
+    toast.innerHTML = `
+      <span style="font-size:20px;">${item.icon}</span>
+      <div>
+        <div style="font-weight:600;">${item.title}</div>
+        <div style="color:#6c757d;font-size:11px;">${item.sub}</div>
+      </div>
+      <span style="color:#adb5bd;cursor:pointer" onclick="this.parentElement.remove()">✕</span>`;
+    toast.onclick = function(e) {
+      if (e.target.tagName==='SPAN' && e.target.style.color) return;
+      toast.remove();
+      if (!saPanelOpen) saToggle();
+    };
+    document.body.appendChild(toast);
+    setTimeout(() => { if (toast.parentElement) toast.remove(); }, 8000);
+  }
+
+  // ── Vòng lặp chính ──
+  function saRun() {
+    if (typeof currentUser === 'undefined' || !currentUser) return;
+    const results = saAnalyze();
+    if (!results) return;
+
+    const newUrgent = results.urgent.length;
+    const newWarn   = results.warn.length;
+    const oldUrgent = saLastAnalysis ? saLastAnalysis.urgent.length : -1;
+    const oldWarn   = saLastAnalysis ? saLastAnalysis.warn.length   : -1;
+    if (newUrgent > oldUrgent || newWarn > oldWarn) saToastShown = false;
+
+    saLastAnalysis = results;
+    saRender(results);
+  }
+
+  // Chạy lần đầu sau 4s
+  setTimeout(saRun, 4000);
+
+  // Chạy mỗi 5 phút
+  setInterval(saRun, 5 * 60 * 1000);
+
+  // Hook vào updateAllDisplays để chạy lại khi có data mới
+  const _orig = window.updateAllDisplays;
+  if (typeof _orig === 'function') {
+    window.updateAllDisplays = function() {
+      _orig.apply(this, arguments);
+      clearTimeout(window._saDebounce);
+      window._saDebounce = setTimeout(saRun, 500);
+    };
+  }
+
+})();
