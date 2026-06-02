@@ -6054,10 +6054,10 @@ async function sendAIMessage(question) {
         'Authorization': 'Bearer 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'
       },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        max_tokens: 1000,
+        model: 'llama-3.3-70b-versatile',
+        max_tokens: 1500,
         messages: [
-          { role: 'system', content: 'Ban la chuyen gia nong nghiep AI MIA. Phan tich du lieu cam bien va dua ra khuyen nghi cu the. Tra loi bang tieng Viet.' },
+          { role: 'system', content: 'Bạn là MIA Assistant - chuyên gia nông nghiệp thông minh của hệ thống quan trắc đất MIA.\n\nVÙNG CANH TÁC: Đông Nam Bộ (Tây Ninh, Bình Dương, Bình Phước)\n- Khí hậu: 2 mùa rõ rệt, mùa khô (11-4), mùa mưa (5-10). Nhiệt độ 25-35°C.\n- Đất đỏ bazan (pHKCl 4.5-5.5), đất xám (pH 4.0-5.0) - CẦN VÔI nếu pH < 5.\n- Cây phổ biến: cao su, điều, khoai mì, sầu riêng, mít, rau màu, lúa nương.\n\nNGƯỠNG CHUẨN ĐẤT ĐÔNG NAM BỘ:\n[pH] Tối ưu: 5.5-6.5 | Chua: <5.0 (bón vôi 1-2 tấn/ha) | Kiềm: >7.0 (hiếm)\n[VWC%] Cây lâu năm: 25-45% | Rau màu: 30-50% | Tưới khi <20%, ngưng >60%\n[EC dS/m] Bình thường: 0.2-0.8 | Cao: >1.5 (rửa mặn) | Cây nhạy: <0.5\n[Nhiệt độ đất] Tối ưu: 25-32°C | Stress rễ: >35°C\n[NDVI] <0.2=đất trống/chết | 0.2-0.4=yếu | 0.4-0.6=trung bình | >0.6=tốt\n[N mg/kg] Thấp:<20 | Đủ:20-80 | Cao:>100\n[P mg/kg] Thấp:<5 | Đủ:5-25 | Cao:>40\n[K meq/100g] Thấp:<0.2 | Đủ:0.2-1.5 | Cao:>2.0\n\nQUY TẮC TƯ VẤN TƯỚI NƯỚC:\n- VWC < 20%: TƯỚi NGAY, sáng sớm 5-7h hoặc chiều 16-18h\n- VWC 20-30%: Chuẩn bị tưới trong 1-2 ngày\n- VWC 30-50%: Theo dõi, chưa cần tưới\n- VWC > 55%: NGỪNG tưới, kiểm tra thoát nước\n- Mùa khô (T11-T4): tưới 2-3 lần/tuần, ưu tiên tưới nhỏ giọt\n- Mùa mưa (T5-T10): theo dõi VWC, ít tưới hơn\n\nQUY TẮC TƯ VẤN BÓN PHÂN:\n- BÓN PHÂN KHI: đất đủ ẩm (VWC 25-40%), KHÔNG bón khi đất quá khô hoặc mưa to\n- EC > 1.0: NGỪNG bón phân hóa học, rửa mặn trước\n- N thấp + NDVI thấp: bón urê hoặc NPK 20-20-15\n- P thấp: bón super lân hoặc NPK có P cao\n- K thấp + quả/hạt: bón KCl hoặc K2SO4\n- pH < 5.0: bón vôi TRƯỚC khi bón phân N, chờ 2-4 tuần\n- Đông Nam Bộ: chia nhỏ lần bón (3-4 lần/vụ), tránh rửa trôi mùa mưa\n\nQUY TẮC NDVI:\n- Ban đêm red/NIR = 0 là BÌNH THƯỜNG (cảm biến không đo được ánh sáng)\n- Đánh giá NDVI có ý nghĩa nhất: 8h-16h\n- NDVI giảm đột ngột: kiểm tra VWC, sâu bệnh, thiếu N\n\nCÁCH TRẢ LỜI:\n1. NGẮN GỌN ≤300 từ, tiếng Việt tự nhiên\n2. ƯU TIÊN số liệu thực từ cảm biến\n3. Đưa ra khuyến nghị CỤ THỂ (thời gian, liều lượng, loại phân)\n4. Kết hợp data cảm biến + data phân tích tay (N/P/K) nếu có\n5. KHÔNG bịa số liệu khi data = 0 hoặc chưa có tín hiệu\n6. Cảnh báo rõ khi phát hiện bất thường' },
           ...aiChatHistory
         ]
       })
@@ -6233,7 +6233,7 @@ async function aixSaveConfig(mode) {
     } else {
       apiKey = (ki && ki.getAttribute('data-real-key')) || sessionStorage.getItem('aix_real_key') || '';
     }
-    model = mi ? mi.value : 'llama-3.1-8b-instant';
+    model = mi ? mi.value : 'llama-3.3-70b-versatile';
     if (!apiKey) {
       alert('Vui lòng nhập Groq API key!');
       return;
@@ -6441,48 +6441,133 @@ function aixClassifyQuestion(text) {
 
 // ── Build system prompt thông minh ──
 function aixBuildSystemPrompt(questionType) {
-  const basePersona = `Bạn là MIA Assistant - trợ lý nông nghiệp thông minh của hệ thống quan trắc đất MIA (Monitoring Intelligence Agriculture).
+  const KNOWLEDGE_BASE = `
+=== KIẾN THỨC NÔNG NGHIỆP ĐÔNG NAM BỘ (Tây Ninh, Bình Dương, Bình Phước) ===
 
-THÔNG TIN VỀ BẢN THÂN:
-- Tên: MIA Assistant
-- Vai trò: Chuyên gia phân tích dữ liệu cảm biến đất và tư vấn canh tác
-- Nhà phát triển: Nhóm nghiên cứu MIA
-- KHÔNG đề cập đến ESP32, Arduino, vi điều khiển, hay phần cứng
-- KHÔNG tự giới thiệu là AI của hãng nào (Groq, Anthropic, OpenAI...)
-- Luôn xưng "tôi" và gọi người dùng là "bạn"`;
+KHÍ HẬU & ĐẤT:
+- Mùa khô: tháng 11-4 | Mùa mưa: tháng 5-10
+- Nhiệt độ trung bình: 26-34°C, đỉnh điểm 38-40°C vào tháng 3-4
+- Đất đỏ bazan (pH 4.5-5.5) và đất xám (pH 4.0-5.0)
+- Đặc điểm: đất chua tự nhiên, cần vôi hóa định kỳ
 
-  const agriExpertise = `
-CHUYÊN MÔN CỦA BẠN:
-- Phân tích pH đất, độ ẩm thể tích (VWC), độ dẫn điện (EC), nhiệt độ đất
-- Đọc và giải thích chỉ số NDVI từ cảm biến S2-411 (hướng lên - đo ánh sáng tới) và S2-412 (hướng xuống - đo phản xạ cây)
-- Tư vấn tưới nước, bón phân, phòng trừ sâu bệnh dựa trên dữ liệu thực tế
-- Cảnh báo bất thường từ các trạm cảm biến
-- Kết hợp dữ liệu tự động (cảm biến) với dữ liệu phân tích tay (N, P, K, Ca, Mg...)`;
+NGƯỠNG CÁC CHỈ SỐ CẢM BIẾN:
+[pH đất]
+  <4.5 → Rất chua: bón vôi bột 2-3 tấn/ha, chờ 4-6 tuần
+  4.5-5.0 → Chua: bón vôi 1-2 tấn/ha hoặc dolomite
+  5.0-5.5 → Hơi chua: theo dõi, phù hợp cây công nghiệp
+  5.5-6.5 → Tối ưu: phù hợp hầu hết cây trồng
+  6.5-7.0 → Hơi kiềm: kiểm tra nguồn nước tưới
+  >7.0 → Kiềm: rất hiếm ở vùng này, cần kiểm tra đặc biệt
 
-  const responseRules = `
-QUY TẮC TRẢ LỜI:
-1. Trả lời NGẮN GỌN, TỐI ĐA 300 từ, dùng tiếng Việt tự nhiên
-2. ƯU TIÊN dữ liệu thực tế từ cảm biến - nếu không có dữ liệu thì nói rõ "chưa nhận được tín hiệu"
-3. Khi có dữ liệu: đưa ra nhận xét CỤ THỂ (không nói chung chung)
-4. Khi KHÔNG có dữ liệu: giải thích ngắn lý do có thể và hướng xử lý
-5. KHÔNG bịa đặt số liệu, KHÔNG phân tích dữ liệu = 0 như thể có dữ liệu thật
-6. Dùng emoji ít thôi: ✅ ⚠️ 💧 🌱 là đủ
-7. KHÔNG dùng bảng markdown phức tạp khi dữ liệu trống
-8. Câu trả lời phải HÀNH ĐỘNG ĐƯỢC - người dùng biết phải làm gì tiếp theo`;
+[VWC - Hàm lượng nước thể tích]
+  <15% → Hạn nặng: TƯỚi KHẨN CẤP, cây có thể stress nghiêm trọng
+  15-20% → Hạn nhẹ: TƯỚi NGAY trong hôm nay
+  20-30% → Hơi thiếu: tưới trong 1-2 ngày tới
+  30-50% → Tối ưu: theo dõi, không cần tưới
+  50-60% → Hơi dư: kiểm tra thoát nước
+  >60% → Úng: DỪNG tưới, kiểm tra rãnh thoát nước ngay
+
+[EC - Độ dẫn điện]
+  <0.2 dS/m → Nghèo dinh dưỡng: cần bón phân
+  0.2-0.5 dS/m → Thấp: phù hợp cây nhạy cảm (rau, hoa)
+  0.5-1.0 dS/m → Bình thường: tốt cho hầu hết cây
+  1.0-1.5 dS/m → Cao: theo dõi, hạn chế bón phân hóa học
+  >1.5 dS/m → Mặn/nhiễm: rửa mặn bằng tưới ngập 2-3 lần
+  >2.0 dS/m → Nguy hiểm: dừng bón phân, rửa mặn khẩn cấp
+
+[Nhiệt độ đất]
+  <20°C → Lạnh: ức chế vi sinh vật, giảm hấp thụ P
+  20-32°C → Tối ưu: điều kiện lý tưởng
+  32-38°C → Nóng: tưới gốc để hạ nhiệt, che phủ đất
+  >38°C → Stress rễ: tưới ngay buổi sáng, che phủ khẩn cấp
+
+[NDVI - Chỉ số sinh trưởng cây]
+  Ban đêm (18h-6h): red/NIR = 0 là BÌNH THƯỜNG, không phân tích
+  <0.1 → Đất trống / cây chết / che phủ rất thưa
+  0.1-0.3 → Cây yếu, thiếu dinh dưỡng hoặc sâu bệnh
+  0.3-0.5 → Phát triển trung bình
+  0.5-0.7 → Phát triển tốt
+  >0.7 → Rất tốt, cây che phủ dày
+
+NGƯỠNG PHÂN TÍCH ĐẤT (N, P, K):
+[Đạm tổng số N (mg/kg)]
+  <10 → Rất nghèo: bón urê 200-300 kg/ha + hữu cơ
+  10-20 → Nghèo: bón urê 150-200 kg/ha
+  20-50 → Trung bình: bón duy trì 100-150 kg/ha
+  50-80 → Khá: bón cân đối theo giai đoạn
+  >80 → Giàu: giảm bón N, chú ý EC
+
+[Lân dễ tiêu P (mg/kg)]
+  <5 → Rất thấp: bón super lân 300-400 kg/ha
+  5-10 → Thấp: bón super lân 200-300 kg/ha
+  10-25 → Đủ: bón duy trì 100-150 kg/ha
+  >25 → Cao: giảm bón P, tránh lãng phí
+
+[Kali trao đổi K (meq/100g)]
+  <0.2 → Rất thấp: bón KCl 150-200 kg/ha
+  0.2-0.5 → Thấp: bón KCl 100-150 kg/ha
+  0.5-1.5 → Đủ: bón duy trì 50-100 kg/ha
+  >1.5 → Cao: giảm K, kiểm tra tỉ lệ K/Mg
+
+TƯ VẤN TƯỚI NƯỚC THÔNG MINH:
+- Thời điểm tưới tốt nhất: 5h-8h sáng hoặc 16h-18h chiều
+- Tránh tưới 10h-14h (bốc hơi cao, sốc nhiệt rễ)
+- Mùa khô: tưới 3-4 lần/tuần, ưu tiên tưới nhỏ giọt/phun sương
+- Mùa mưa: theo VWC thực tế, có thể tưới 0-1 lần/tuần
+- Cây lâu năm (cao su, điều, sầu riêng): tưới 30-50 L/cây/lần khi VWC <25%
+- Rau màu ngắn ngày: tưới nhỏ giọt 2-3 lần/ngày khi VWC <30%
+
+TƯ VẤN BÓN PHÂN:
+- Điều kiện BÓN: VWC 25-45%, EC <1.0, không mưa trong 2-4h
+- KHÔNG bón khi: đất khô <20%, mưa to, EC >1.5
+- Cách bón hiệu quả: chia nhỏ 3-4 lần/vụ, hòa tan rồi tưới gốc
+- Bón lót (trước trồng/đầu vụ): 30% lượng N + 100% P + 30% K
+- Bón thúc: chia phần còn lại theo giai đoạn phát triển
+- pH <5.0: bón vôi TRƯỚC, chờ 3-4 tuần mới bón phân
+- Kết hợp phân hữu cơ: 5-10 tấn phân chuồng hoai/ha/vụ
+
+PHÒNG SÂU BỆNH (kết hợp NDVI + thời tiết):
+- NDVI giảm đột ngột >0.1 trong 1 tuần: kiểm tra sâu bệnh ngay
+- Nhiệt độ cao (>35°C) + ẩm độ >80%: nguy cơ nấm bệnh cao
+- Mùa chuyển tiếp mưa-khô: phun phòng bệnh chết nhanh/thối rễ
+- EC tăng đột ngột: kiểm tra nguồn nước, có thể nhiễm mặn/phèn
+
+CÂY TRỒNG PHỔ BIẾN VÙNG ĐÔNG NAM BỘ:
+- Cao su: pH 4.5-6.0, VWC 35-50%, tưới mùa khô, chú ý bệnh phấn trắng
+- Điều: chịu hạn tốt, VWC 20-35%, không tưới khi ra hoa
+- Khoai mì: VWC 25-40%, EC <0.8, thu hoạch khi NDVI giảm
+- Sầu riêng: VWC 30-45%, pH 5.5-6.5, nhạy cảm ngập úng
+- Rau màu: VWC 30-50%, EC <0.8, N cao trong giai đoạn sinh trưởng`;
+
+  const persona = `Bạn là MIA Assistant - chuyên gia nông nghiệp thông minh của hệ thống quan trắc đất MIA.
+KHÔNG đề cập đến ESP32, Arduino, Groq, hay bất kỳ công nghệ phần cứng/AI cụ thể nào.
+Luôn xưng "tôi", gọi người dùng là "bạn". Trả lời tiếng Việt, tối đa 400 từ.`;
+
+  const rules = `
+CÁCH PHÂN TÍCH VÀ TRẢ LỜI:
+1. ĐỌC DỮ LIỆU: So sánh từng chỉ số với ngưỡng chuẩn trong kiến thức bên dưới
+2. KẾT HỢP: Nếu có data N/P/K thủ công, kết hợp với EC cảm biến để đưa lịch bón phân
+3. ƯU TIÊN: Tình trạng khẩn cấp (VWC<15%, EC>2.0, nhiệt độ>38°C) → cảnh báo trước
+4. CỤ THỂ: Đưa ra con số, thời gian, loại vật tư cụ thể (không nói chung chung)
+5. THỰC TẾ: Dựa vào mùa vụ Đông Nam Bộ, thời tiết địa phương
+6. GIẢ ĐỊNH: Nếu không biết cây gì, mặc định tư vấn cho cây lâu năm vùng Đông Nam Bộ
+7. DATA = 0 BAN ĐÊM: Không phân tích red/NIR/NDVI nếu timestamp ban đêm
+8. NÓI RÕ: Khi data chưa có tín hiệu, giải thích ngắn và hướng xử lý`;
 
   if (questionType === 'off_topic') {
-    return `${basePersona}
+    return `${persona}
 
-${responseRules}
+${rules}
 
-QUAN TRỌNG: Câu hỏi này NẰM NGOÀI chuyên môn của bạn.
-Hãy lịch sự từ chối và hướng người dùng về chủ đề nông nghiệp/cảm biến.
-Ví dụ: "Câu hỏi này ngoài phạm vi chuyên môn của tôi. Tôi chỉ hỗ trợ về phân tích đất, tưới tiêu, bón phân và giám sát cây trồng. Bạn muốn hỏi gì về hệ thống quan trắc không?"`;
+QUAN TRỌNG: Câu hỏi này nằm ngoài chuyên môn nông nghiệp/cảm biến.
+Từ chối lịch sự: "Câu hỏi này ngoài phạm vi của tôi. Tôi chuyên về phân tích đất, tưới tiêu, bón phân và giám sát cây trồng tại Đông Nam Bộ. Bạn muốn hỏi gì về hệ thống quan trắc không?"`;
   }
 
-  return `${basePersona}
-${agriExpertise}
-${responseRules}`;
+  return `${persona}
+
+${KNOWLEDGE_BASE}
+
+${rules}`;
 }
 
 
@@ -6522,8 +6607,7 @@ function aixBuildContext() {
 
   const nd = (typeof lastNDVIData !== 'undefined') ? lastNDVIData : null;
 
-  //if (nd && nd.valid && (nd.S2_411.red !== 0 || nd.S2_411.nir !== 0)) {
-  if (nd && nd.valid && (nd.S2_411.red !== 0 || nd.S2_411.nir !== 0 || nd.S2_411.angle !== 0 || nd.S2_412.angle !== 0 || nd.node_battery > 0)) {
+  if (nd && nd.valid && (nd.S2_411.red !== 0 || nd.S2_411.nir !== 0)) {
     const r411 = nd.S2_411.red,  n411 = nd.S2_411.nir;
     const r412 = nd.S2_412.red,  n412 = nd.S2_412.nir;
     const nd411 = (n411 - r411) / ((n411 + r411) || 0.001);
@@ -6550,15 +6634,9 @@ function aixBuildContext() {
       s.isNDVI || s.id === 'NDVI_NODE' ||
       (typeof s.id === 'number' && s.id === 7)
     );
-    //if (ndviSt && ndviSt.data && ndviSt.data.length >= 7 &&
-        //(ndviSt.data[0] !== 0 || ndviSt.data[6] !== 0)) {
-
     if (ndviSt && ndviSt.data && ndviSt.data.length >= 7 &&
-    (ndviSt.data[0] !== 0 || ndviSt.data[2] !== 0 || ndviSt.data[5] !== 0 || ndviSt.data[6] !== 0 || ndviSt.data[7] > 0)) {
+        (ndviSt.data[0] !== 0 || ndviSt.data[6] !== 0)) {
       const d = ndviSt.data;
-      ctx += `  S2-411: RED=${r411.toFixed(4)} W/m²·nm | NIR=${n411.toFixed(4)} W/m²·nm | Góc=${nd.S2_411.angle.toFixed(1)}°\n`;
-      ctx += `  S2-412: RED=${r412.toFixed(4)} W/m²·nm | NIR=${n412.toFixed(4)} W/m²·nm | Góc=${nd.S2_412.angle.toFixed(1)}°\n`;
-      ctx += `  NDVI=${avg.toFixed(4)} (RED=0 có thể do đo ban đêm hoặc góc cảm biến)\n`;
       ctx += `  S2-411: RED=${d[0]} | NIR=${d[1]} | Góc=${d[2]}°\n`;
       ctx += `  S2-412: RED=${d[3]} | NIR=${d[4]} | Góc=${d[5]}°\n`;
       ctx += `  NDVI=${d[6]}\n`;
@@ -6578,6 +6656,64 @@ function aixBuildContext() {
   return ctx;
 }
 
+
+
+// ── Phân tích nhanh dữ liệu để thêm vào context ──
+function aixAnalyzeData(ctx) {
+  const alerts = [];
+  const recommendations = [];
+  
+  if (typeof stations === 'undefined' || !stations) return { alerts, recommendations };
+  
+  const activeSt = stations.filter(s => !s.isNDVI && s.data && s.data.length >= 8 &&
+    (s.data[0] !== 0 || s.data[1] !== 0 || s.data[3] !== 0));
+  
+  if (activeSt.length === 0) return { alerts, recommendations };
+  
+  // Tính trung bình
+  const avgPh  = activeSt.reduce((s,st) => s + (st.data[0]||0), 0) / activeSt.length;
+  const avgVwc = activeSt.reduce((s,st) => s + (st.data[1]||0), 0) / activeSt.length;
+  const avgEc  = activeSt.reduce((s,st) => s + (st.data[2]||0), 0) / activeSt.length;
+  const avgTemp= activeSt.reduce((s,st) => s + (st.data[3]||0), 0) / activeSt.length;
+  
+  // Phân tích VWC
+  if (avgVwc < 15) alerts.push('🚨 KHẨN: VWC=' + avgVwc.toFixed(1) + '% — HẠN NẶNG, tưới ngay lập tức');
+  else if (avgVwc < 20) alerts.push('⚠️ VWC=' + avgVwc.toFixed(1) + '% — Cần tưới hôm nay (sáng sớm hoặc chiều mát)');
+  else if (avgVwc < 25) recommendations.push('💧 VWC=' + avgVwc.toFixed(1) + '% — Chuẩn bị tưới trong 1-2 ngày');
+  else if (avgVwc > 65) alerts.push('⚠️ VWC=' + avgVwc.toFixed(1) + '% — Quá ẩm, kiểm tra thoát nước');
+  
+  // Phân tích pH
+  if (avgPh < 4.5) alerts.push('🚨 pH=' + avgPh.toFixed(1) + ' — Rất chua, bón vôi 2-3 tấn/ha khẩn cấp');
+  else if (avgPh < 5.0) alerts.push('⚠️ pH=' + avgPh.toFixed(1) + ' — Chua, bón vôi 1-2 tấn/ha');
+  else if (avgPh < 5.5) recommendations.push('📊 pH=' + avgPh.toFixed(1) + ' — Hơi chua, theo dõi định kỳ');
+  
+  // Phân tích EC
+  if (avgEc > 2.0) alerts.push('🚨 EC=' + avgEc.toFixed(2) + ' dS/m — NGUY HIỂM: dừng bón phân, rửa mặn ngay');
+  else if (avgEc > 1.5) alerts.push('⚠️ EC=' + avgEc.toFixed(2) + ' dS/m — Cao: hạn chế bón phân hóa học');
+  else if (avgEc < 0.2) recommendations.push('📊 EC=' + avgEc.toFixed(2) + ' dS/m — Nghèo dinh dưỡng, cần bón phân');
+  
+  // Phân tích nhiệt độ đất
+  if (avgTemp > 38) alerts.push('🌡️ T đất=' + avgTemp.toFixed(1) + '°C — Stress rễ, tưới ngay + che phủ');
+  else if (avgTemp > 35) recommendations.push('🌡️ T đất=' + avgTemp.toFixed(1) + '°C — Nóng, tưới gốc buổi sáng');
+  
+  // Phân tích NDVI
+  if (lastNDVIData && lastNDVIData.valid) {
+    const hour = new Date().getHours();
+    if (hour >= 7 && hour <= 17) {
+      const r411 = lastNDVIData.S2_411.red, n411 = lastNDVIData.S2_411.nir;
+      const r412 = lastNDVIData.S2_412.red, n412 = lastNDVIData.S2_412.nir;
+      if (r411 + n411 + r412 + n412 > 0) {
+        const nd411 = (n411 - r411) / ((n411 + r411) || 0.001);
+        const nd412 = (n412 - r412) / ((n412 + r412) || 0.001);
+        const ndviAvg = (nd411 + nd412) / 2;
+        if (ndviAvg < 0.2) alerts.push('🌿 NDVI=' + ndviAvg.toFixed(3) + ' — Cây yếu/đất trống, kiểm tra sâu bệnh và dinh dưỡng');
+        else if (ndviAvg < 0.35) recommendations.push('🌿 NDVI=' + ndviAvg.toFixed(3) + ' — Sinh trưởng thấp, xem xét bón thêm N');
+      }
+    }
+  }
+  
+  return { alerts, recommendations };
+}
 
 // ── Gửi message ──
 async function aixSend() {
@@ -6602,7 +6738,21 @@ async function aixSend() {
   let userContent = text;
   if (qType !== 'off_topic') {
     const ctx = aixBuildContext();
-    userContent = ctx + '\n\nCâu hỏi của người dùng: ' + text;
+    const analysis = aixAnalyzeData(ctx);
+    let analysisText = '';
+    if (analysis.alerts.length > 0) {
+      analysisText += '\n\n=== CẢNH BÁO PHÁT HIỆN ===\n' + analysis.alerts.join('\n');
+    }
+    if (analysis.recommendations.length > 0) {
+      analysisText += '\n\n=== LƯU Ý THÊM ===\n' + analysis.recommendations.join('\n');
+    }
+    const now = new Date();
+    const hour = now.getHours();
+    const month = now.getMonth() + 1;
+    const season = (month >= 5 && month <= 10) ? 'mùa mưa' : 'mùa khô';
+    const timeOfDay = (hour >= 6 && hour < 12) ? 'buổi sáng' : (hour >= 12 && hour < 18) ? 'buổi chiều' : 'ban đêm';
+    const timeCtx = \`\n\n=== THỜI GIAN HIỆN TẠI ===\nThời điểm: \${now.toLocaleString('vi-VN')} (\${timeOfDay})\nMùa vụ: \${season} (tháng \${month})\nLưu ý: \${timeOfDay === 'ban đêm' ? 'Cảm biến ánh sáng/NDVI không có giá trị ban đêm' : 'Dữ liệu cảm biến ánh sáng hợp lệ'}\`;
+    userContent = ctx + analysisText + timeCtx + '\n\nCâu hỏi của người dùng: ' + text;
   }
 
   // Thêm vào history (giới hạn 10 lượt để tránh token quá dài)
@@ -6620,8 +6770,8 @@ async function aixSend() {
         'Authorization': 'Bearer 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'
       },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        max_tokens: 1000,
+        model: 'llama-3.3-70b-versatile',
+        max_tokens: 1500,
         messages: [
           { role: 'system', content: systemPrompt },
           ...aixHistory
