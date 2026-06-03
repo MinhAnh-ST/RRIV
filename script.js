@@ -12,7 +12,6 @@ let lastNDVIData = null; // Biến lưu trữ dữ liệu NDVI mới nhất
 
 
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzx6Aop5VUzok-IcgaVOWB84gN7xOgOK8OjLr8g_p8xQIIgJAJsKA2EGhSehkHaa1xiWA/exec';
-const GEMINI_API_KEY = 'AQ.Ab8RN6K_ORKhT3-gJHeTPfFJSLteDGZ5r2Bu4UPcqC4ygoIgqg'; // 👈 Điền key vào đây
 
 
 let historicalStore = {}; 
@@ -6048,37 +6047,35 @@ async function sendAIMessage(question) {
   aiChatHistory.push({ role: 'user', content: buildSensorContext() + '\n\nCau hoi: ' + text });
   if (aiChatHistory.length > 20) aiChatHistory = aiChatHistory.slice(-20);
   try {
-    // Ghép system prompt + history thành Gemini contents
-    const systemText = 'Bạn là chuyên gia tư vấn nông nghiệp của hệ thống MIA tại Đông Nam Bộ. Luôn xưng tôi, trả lời tiếng Việt ngắn gọn, cụ thể.';
-    const geminiContents = aiChatHistory.map(m => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }]
-    }));
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemText }] },
-          contents: geminiContents,
-          generationConfig: { maxOutputTokens: 1024, temperature: 0.7 }
-        })
-      }
-    );
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer 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'
+      },
+      body: JSON.stringify({
+        //model: 'llama-3.1-8b-instant',
+        model: 'llama-3.3-70b-versatile',
+        max_tokens: 6000,
+        messages: [
+          { role: 'system', content: 'Ban la chuyen gia nong nghiep AI MIA. Phan tich du lieu cam bien va dua ra khuyen nghi cu the. Tra loi bang tieng Viet.' },
+          ...aiChatHistory
+        ]
+      })
+    });
     document.getElementById('aiTyping')?.remove();
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      appendAIMsg('assistant', `❌ Lỗi Gemini (${res.status}): ${err.error?.message || 'Không xác định'}`);
+      appendAIMsg('assistant', `❌ Lỗi Groq (${res.status}): ${err.error?.message || 'Không xác định'}`);
     } else {
       const data = await res.json();
-      const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '❌ Không có phản hồi';
+      const reply = data.choices?.[0]?.message?.content || '❌ Không có phản hồi';
       aiChatHistory.push({ role: 'assistant', content: reply });
       appendAIMsg('assistant', reply);
     }
   } catch(err) {
     document.getElementById('aiTyping')?.remove();
-    appendAIMsg('assistant', '❌ Không kết nối được Gemini. Kiểm tra internet.');
+    appendAIMsg('assistant', '❌ Không kết nối được Groq. Kiểm tra internet.');
   }
   if (btn) btn.disabled = false;
   if (input) input.focus();
@@ -6339,7 +6336,6 @@ function aixUpdateBadge(provider) {
   const map = {
     offline:   { cls: 'aix-badge-offline',   txt: 'Offline' },
     groq:      { cls: 'aix-badge-groq',       txt: 'Groq Free' },
-    gemini:    { cls: 'aix-badge-groq',       txt: 'Gemini AI' },
     anthropic: { cls: 'aix-badge-anthropic',  txt: 'Claude' },
     openai:    { cls: 'aix-badge-openai',     txt: 'GPT' },
   };
@@ -6733,40 +6729,42 @@ async function aixSend() {
   aixShowTyping();
 
   try {
-    // Gửi lên Gemini API
-    const geminiContents = aixHistory.map(m => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }]
-    }));
-   const res = await fetch(
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-  {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': GEMINI_API_KEY   // ← phải có dòng này
-    },
-    );
+    // Gửi lên gateway - gateway sẽ forward tới Groq/Claude/GPT
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer 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'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        max_tokens: 1000,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...aixHistory
+        ]
+      })
+    });
 
     aixHideTyping();
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      aixAppendMsg('assistant', `❌ Lỗi Gemini (${res.status}): ${err.error?.message || 'Không xác định'}`);
+      aixAppendMsg('assistant', `❌ Lỗi Groq (${res.status}): ${err.error?.message || 'Không xác định'}`);
       return;
     }
 
     const data  = await res.json();
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '❌ Không có phản hồi';
+    const reply = data.choices?.[0]?.message?.content || '❌ Không có phản hồi';
     aixHistory.push({ role: 'assistant', content: reply });
     aixAppendMsg('assistant', reply);
-    aixProvider = 'gemini';
-    aixUpdateBadge('gemini');
+    aixProvider = 'groq';
+    aixUpdateBadge('groq');
 
   } catch(err) {
     aixHideTyping();
-    console.error('[AIX] Gemini error:', err);
-    aixAppendMsg('assistant', '❌ Không kết nối được Gemini. Kiểm tra internet.');
+    console.error('[AIX] Groq error:', err);
+    aixAppendMsg('assistant', '❌ Không kết nối được Groq. Kiểm tra internet.');
   } finally {
     if (btn) btn.disabled = false;
     if (inp) inp.focus();
