@@ -6056,7 +6056,7 @@ async function sendAIMessage(question) {
       body: JSON.stringify({
         //model: 'llama-3.1-8b-instant',
         model: 'llama-3.3-70b-versatile',
-        max_tokens: 6000,
+        max_tokens: 600,
         messages: [
           { role: 'system', content: 'Ban la chuyen gia nong nghiep AI MIA. Phan tich du lieu cam bien va dua ra khuyen nghi cu the. Tra loi bang tieng Viet.' },
           ...aiChatHistory
