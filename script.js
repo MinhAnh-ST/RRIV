@@ -12,7 +12,7 @@ let lastNDVIData = null; // Biến lưu trữ dữ liệu NDVI mới nhất
 
 
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzx6Aop5VUzok-IcgaVOWB84gN7xOgOK8OjLr8g_p8xQIIgJAJsKA2EGhSehkHaa1xiWA/exec';
-const GEMINI_API_KEY = 'AQ.Ab8RN6IEuw3wps-1k2UMvjrZiXBpu_4D6H1PmBpziDgIWJN83A'; // 👈 Điền key vào đây
+const GEMINI_API_KEY = 'AQ.Ab8RN6L1YtOfb8Y_DWPFn4DUluobd2LwrgCZSvkXg2L9JBJXtw'; // 👈 Điền key vào đây
 
 
 let historicalStore = {}; 
