@@ -12,7 +12,7 @@ let lastNDVIData = null; // Biến lưu trữ dữ liệu NDVI mới nhất
 
 
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzx6Aop5VUzok-IcgaVOWB84gN7xOgOK8OjLr8g_p8xQIIgJAJsKA2EGhSehkHaa1xiWA/exec';
-const GEMINI_API_KEY = 'AQ.Ab8RN6L1YtOfb8Y_DWPFn4DUluobd2LwrgCZSvkXg2L9JBJXtw'; // 👈 Điền key vào đây
+const GEMINI_API_KEY = 'AQ.Ab8RN6K_ORKhT3-gJHeTPfFJSLteDGZ5r2Bu4UPcqC4ygoIgqg'; // 👈 Điền key vào đây
 
 
 let historicalStore = {}; 
@@ -6738,17 +6738,14 @@ async function aixSend() {
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }]
     }));
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: geminiContents,
-          generationConfig: { maxOutputTokens: 1024, temperature: 0.7 }
-        })
-      }
+   const res = await fetch(
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': GEMINI_API_KEY   // ← phải có dòng này
+    },
     );
 
     aixHideTyping();
