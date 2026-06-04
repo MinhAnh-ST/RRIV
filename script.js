@@ -7468,76 +7468,246 @@ async function mdLoadHistory() {
         <i class="fas fa-clipboard me-2"></i>Chưa có dữ liệu phân tích tay</div>`;
       return;
     }
-    // lọc search/date
+
+    // ── Lọc search/date ──
     const search = (document.getElementById('md-search')?.value || '').toLowerCase();
-    const from   = document.getElementById('md-from')?.value  || '';
-    const to     = document.getElementById('md-to')?.value    || new Date().toISOString().slice(0,10);
+    const from   = document.getElementById('md-from')?.value || '';
+    const to     = document.getElementById('md-to')?.value   || new Date().toISOString().slice(0,10);
     let filtered = rows;
     if (search) filtered = filtered.filter(r => (r['Ten mau']||'').toLowerCase().includes(search));
-    //if (from)   filtered = filtered.filter(r => (r['Ngay lay mau']||'') >= from);
-    //if (to)     filtered = filtered.filter(r => (r['Ngay lay mau']||'') <= to);
-
     if (from) filtered = filtered.filter(r => {
-  const d = new Date(r['Ngay lay mau']||'');
-  return !isNaN(d) && d >= new Date(from);
-});
-if (to) filtered = filtered.filter(r => {
-  const d = new Date(r['Ngay lay mau']||'');
-  const toDate = new Date(to);
-  toDate.setHours(23,59,59);
-  return !isNaN(d) && d <= toDate;
-});
+      const d = new Date(r['Ngay lay mau']||'');
+      return !isNaN(d) && d >= new Date(from);
+    });
+    if (to) filtered = filtered.filter(r => {
+      const d = new Date(r['Ngay lay mau']||'');
+      const toDate = new Date(to); toDate.setHours(23,59,59);
+      return !isNaN(d) && d <= toDate;
+    });
 
-    const fixed   = ['Timestamp','Ngay lay mau','Ten mau','Do sau','Ghi chu'];
+    // ── Ngưỡng chuẩn N/P/K/Ca/Mg/humus ──
+    const THRESH = {
+      N:     { min: 20,  max: 80,  unit: 'mg/kg',    name: 'Đạm N' },
+      P:     { min: 5,   max: 25,  unit: 'mg/kg',    name: 'Lân P' },
+      K:     { min: 0.2, max: 1.5, unit: 'meq/100g', name: 'Kali K' },
+      Ca:    { min: 2,   max: 10,  unit: 'meq/100g', name: 'Canxi Ca' },
+      Mg:    { min: 0.5, max: 3,   unit: 'meq/100g', name: 'Magie Mg' },
+      humus: { min: 1,   max: 5,   unit: '%',         name: 'Mùn' },
+    };
+
+    // ── Hàm đánh giá 1 giá trị ──
+    function evalVal(key, val) {
+      const n = parseFloat(val);
+      if (isNaN(n) || !THRESH[key]) return { cls: '', label: '' };
+      const t = THRESH[key];
+      if (n < t.min) return { cls: 'bad', label: 'Thấp' };
+      if (n > t.max) return { cls: 'bad', label: 'Cao' };
+      return { cls: 'ok', label: 'Đủ' };
+    }
+
+    // ── Summary cards ──
+    const fixed = ['Timestamp','Ngay lay mau','Ten mau','Do sau','Ghi chu'];
     const dynCols = Object.keys(rows[0]||{}).filter(k => !fixed.includes(k));
-    const thead   = dynCols.map(c => {
-      const f = manualFields.find(f => f.id === c);
-      return `<th style="font-size:12px;white-space:nowrap">
-        ${f ? f.name.replace(/\(.*?\)/,'').trim() : c}
-        <br><span style="font-weight:400;color:#adb5bd;font-size:10px">${f?f.unit:''}</span>
-      </th>`;
+    const knownKeys = Object.keys(THRESH);
+
+    function avgOf(key) {
+      const vals = filtered.map(r => parseFloat(r[key])).filter(v => !isNaN(v));
+      if (!vals.length) return null;
+      return vals.reduce((a,b)=>a+b,0)/vals.length;
+    }
+    function colorClass(key, avg) {
+      if (avg === null) return '';
+      const t = THRESH[key];
+      if (!t) return '';
+      if (avg < t.min || avg > t.max) return 'color:#A32D2D';
+      if (avg < t.min*1.2 || avg > t.max*0.85) return 'color:#BA7517';
+      return 'color:#3B6D11';
+    }
+
+    const avgN = avgOf('N'), avgP = avgOf('P'), avgK = avgOf('K');
+    const summaryHtml = `
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:1rem">
+        <div style="background:var(--color-background-secondary);border-radius:8px;padding:10px 12px">
+          <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:4px">Tổng mẫu</div>
+          <div style="font-size:20px;font-weight:500">${filtered.length}</div>
+          <div style="font-size:10px;color:var(--color-text-tertiary);margin-top:2px">${[...new Set(filtered.map(r=>r['Ten mau']).filter(Boolean))].length} ruộng/mẫu khác nhau</div>
+        </div>
+        <div style="background:var(--color-background-secondary);border-radius:8px;padding:10px 12px">
+          <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:4px">Đạm (N) TB</div>
+          <div style="font-size:20px;font-weight:500;${colorClass('N',avgN)}">${avgN!==null?avgN.toFixed(1):'—'} <span style="font-size:12px;font-weight:400">mg/kg</span></div>
+          <div style="font-size:10px;color:var(--color-text-tertiary);margin-top:2px">Tối ưu: 20–80</div>
+        </div>
+        <div style="background:var(--color-background-secondary);border-radius:8px;padding:10px 12px">
+          <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:4px">Lân (P) TB</div>
+          <div style="font-size:20px;font-weight:500;${colorClass('P',avgP)}">${avgP!==null?avgP.toFixed(1):'—'} <span style="font-size:12px;font-weight:400">mg/kg</span></div>
+          <div style="font-size:10px;color:var(--color-text-tertiary);margin-top:2px">Tối ưu: 5–25</div>
+        </div>
+        <div style="background:var(--color-background-secondary);border-radius:8px;padding:10px 12px">
+          <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:4px">Kali (K) TB</div>
+          <div style="font-size:20px;font-weight:500;${colorClass('K',avgK)}">${avgK!==null?avgK.toFixed(2):'—'} <span style="font-size:12px;font-weight:400">meq/100g</span></div>
+          <div style="font-size:10px;color:var(--color-text-tertiary);margin-top:2px">Tối ưu: 0.2–1.5</div>
+        </div>
+      </div>`;
+
+    // ── Card khuyến nghị (dựa vào mẫu mới nhất) ──
+    const latest = filtered[filtered.length - 1];
+    let recHtml = '';
+    if (latest) {
+      const recItems = knownKeys.map(key => {
+        const v = parseFloat(latest[key]);
+        if (isNaN(v)) return null;
+        const t = THRESH[key];
+        let cls, label, text;
+        if (v < t.min) {
+          cls = 'bad'; label = `▼ ${t.name} thấp — ${v} ${t.unit}`;
+          if (key==='N') text = `Bón urê 150–200 kg/ha, chia 2–3 lần. Không bón khi đất khô hoặc mưa to.`;
+          else if (key==='P') text = `Bón super lân 200–300 kg/ha đầu vụ.`;
+          else if (key==='K') text = `Bón KCl 100–150 kg/ha, ưu tiên giai đoạn ra trái.`;
+          else if (key==='Ca') text = `Bón vôi dolomite 500 kg/ha, kết hợp cải thiện pH.`;
+          else if (key==='Mg') text = `Bón magie sulfate 50–100 kg/ha hoặc dolomite.`;
+          else text = `Bổ sung phân hữu cơ 5–10 tấn/ha để cải thiện hàm lượng mùn.`;
+        } else if (v > t.max) {
+          cls = 'bad'; label = `▲ ${t.name} cao — ${v} ${t.unit}`;
+          if (key==='N') text = `Tạm ngưng bón N. Kiểm tra EC cảm biến, nguy cơ rửa trôi.`;
+          else if (key==='P') text = `Ngưng bón super lân. Kiểm tra lại sau 1 vụ.`;
+          else if (key==='K') text = `Giảm KCl, kiểm tra tỉ lệ K/Mg. Có thể ảnh hưởng hấp thụ Ca.`;
+          else if (key==='Ca') text = `Kiểm tra pH, Ca cao có thể làm giảm hấp thụ K và Mg.`;
+          else if (key==='Mg') text = `Tạm ngưng phân chứa Mg. Kiểm tra lại sau 4–6 tuần.`;
+          else text = `Mùn cao — tốt cho đất nhưng kiểm tra thoáng khí và thoát nước.`;
+        } else {
+          cls = 'ok'; label = `● ${t.name} đủ — ${v} ${t.unit}`;
+          if (key==='N') text = `Duy trì bằng bón urê 80–100 kg/ha định kỳ theo vụ.`;
+          else if (key==='P') text = `Ổn định. Bón duy trì 100 kg/ha super lân mỗi vụ.`;
+          else if (key==='K') text = `Tốt. Bón KCl 50 kg/ha khi cây ra hoa/trái.`;
+          else if (key==='Ca') text = `Tốt. Duy trì pH 5.5–6.5 để Ca được hấp thụ tốt.`;
+          else if (key==='Mg') text = `Ổn. Theo dõi định kỳ 3 tháng/lần.`;
+          else text = `Mùn tốt. Tiếp tục bổ sung 3–5 tấn phân chuồng hoai/ha/vụ.`;
+        }
+        return `<div style="border-radius:8px;padding:8px 10px;background:${cls==='bad'?'#FCEBEB':cls==='ok'?'#EAF3DE':'#FAEEDA'}">
+          <div style="font-size:10px;font-weight:500;margin-bottom:3px;color:${cls==='bad'?'#A32D2D':cls==='ok'?'#3B6D11':'#854F0B'}">${label}</div>
+          <div style="font-size:11px;line-height:1.5;color:${cls==='bad'?'#791F1F':cls==='ok'?'#27500A':'#633806'}">${text}</div>
+        </div>`;
+      }).filter(Boolean);
+
+      const latestDate = new Date(latest['Ngay lay mau']).toLocaleDateString('vi-VN');
+      recHtml = `
+        <div style="background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:12px;padding:12px 16px;margin-bottom:1rem">
+          <div style="font-size:12px;font-weight:500;margin-bottom:10px;display:flex;align-items:center;gap:6px;color:var(--color-text-primary)">
+            <i class="fas fa-lightbulb" style="color:#BA7517"></i>
+            Khuyến nghị xử lý — ${latest['Ten mau']||'Mẫu mới nhất'} (${latestDate})
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+            ${recItems.join('')}
+          </div>
+        </div>`;
+    }
+
+    // ── Thanh so sánh ngưỡng (mẫu mới nhất) ──
+    let barHtml = '';
+    if (latest) {
+      const bars = knownKeys.map(key => {
+        const v = parseFloat(latest[key]);
+        if (isNaN(v)) return '';
+        const t = THRESH[key];
+        const maxScale = Math.max(v, t.max) * 1.3;
+        const fillPct  = Math.min(100, (v / maxScale) * 100).toFixed(1);
+        const optL     = ((t.min / maxScale) * 100).toFixed(1);
+        const optW     = (((t.max - t.min) / maxScale) * 100).toFixed(1);
+        const isOk = v >= t.min && v <= t.max;
+        const fillColor = v < t.min ? '#E24B4A' : v > t.max ? '#E24B4A' : '#639922';
+        const valCls = isOk ? 'color:#3B6D11' : 'color:#A32D2D';
+        return `
+          <div style="margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">
+              <span style="color:var(--color-text-secondary)">${t.name} (${t.unit})</span>
+              <span style="font-weight:500;${valCls}">${v}</span>
+            </div>
+            <div style="height:6px;background:var(--color-background-secondary);border-radius:3px;overflow:hidden;position:relative">
+              <div style="position:absolute;left:${optL}%;width:${optW}%;height:100%;background:#C0DD97;opacity:0.5"></div>
+              <div style="width:${fillPct}%;height:100%;background:${fillColor};border-radius:3px;position:relative"></div>
+            </div>
+            <div style="font-size:10px;color:var(--color-text-tertiary);margin-top:2px">Tối ưu: ${t.min}–${t.max} ${t.unit}</div>
+          </div>`;
+      }).join('');
+
+      barHtml = `
+        <div style="background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:12px;padding:12px 16px;margin-bottom:1rem">
+          <div style="font-size:12px;font-weight:500;margin-bottom:10px;display:flex;align-items:center;gap:6px;color:var(--color-text-primary)">
+            <i class="fas fa-chart-bar" style="color:#185FA5"></i>
+            So sánh với ngưỡng tối ưu — ${latest['Ten mau']||''} (${new Date(latest['Ngay lay mau']).toLocaleDateString('vi-VN')})
+            <span style="font-size:10px;font-weight:400;color:var(--color-text-tertiary);margin-left:4px">
+              <span style="display:inline-block;width:10px;height:6px;background:#C0DD97;border-radius:2px;vertical-align:middle"></span> vùng tối ưu
+            </span>
+          </div>
+          <div>${bars}</div>
+        </div>`;
+    }
+
+    // ── Bảng dữ liệu ──
+    const thead = dynCols.map(c => {
+      const t = THRESH[c];
+      const n = t ? t.name.replace(/\(.*?\)/,'').trim() : c;
+      const u = t ? t.unit : '';
+      return `<th style="font-size:11px;white-space:nowrap;padding:8px 10px;text-align:left;font-weight:500;color:var(--color-text-secondary);background:var(--color-background-secondary)">${n}<br><span style="font-weight:400;opacity:.7">${u}</span></th>`;
     }).join('');
+
     const tbody = filtered.slice(0,50).map(r => {
       const ngay = r['Ngay lay mau'] ? new Date(r['Ngay lay mau']).toLocaleDateString('vi-VN') : '';
+      let issueCount = 0;
       const cells = dynCols.map(c => {
-        const v = r[c]; if (!v||v==='') return '<td style="color:#dee2e6">—</td>';
+        const v = r[c];
+        if (!v || v==='') return `<td style="padding:8px 10px;color:var(--color-text-tertiary)">—</td>`;
         const n = parseFloat(v);
-        const f = manualFields.find(f => f.id === c);
-        const warn = f && !isNaN(n) && (n < f.ref_min || n > f.ref_max);
-        return `<td style="${warn?'color:#dc3545;font-weight:500':''}">${isNaN(n)?v:n.toFixed(2)}</td>`;
+        const ev = evalVal(c, v);
+        if (ev.cls === 'bad') issueCount++;
+        const style = ev.cls === 'bad'
+          ? 'color:#A32D2D;font-weight:500'
+          : ev.cls === 'ok'
+          ? 'color:#3B6D11'
+          : '';
+        return `<td style="padding:8px 10px;${style}">${isNaN(n)?v:n.toFixed(2)}</td>`;
       }).join('');
+
+      const badgeBg = issueCount === 0 ? '#EAF3DE' : issueCount <= 2 ? '#FAEEDA' : '#FCEBEB';
+      const badgeColor = issueCount === 0 ? '#27500A' : issueCount <= 2 ? '#633806' : '#791F1F';
+      const badgeText = issueCount === 0 ? 'Ổn định' : `${issueCount} vấn đề`;
+
       return `<tr>
-        <td style="font-size:12px;color:#6c757d;white-space:nowrap">${ngay}</td>
-        <td style="font-weight:500">${r['Ten mau']||''}</td>
-        <td style="font-size:12px;color:#6c757d">${r['Do sau']||'—'}</td>
+        <td style="padding:8px 10px;font-size:11px;color:var(--color-text-tertiary);white-space:nowrap">${ngay}</td>
+        <td style="padding:8px 10px;font-weight:500">${r['Ten mau']||''}</td>
+        <td style="padding:8px 10px;font-size:12px;color:var(--color-text-secondary)">${r['Do sau']||'—'}</td>
         ${cells}
-        <td style="font-size:11px;color:#adb5bd">${r['Ghi chu']||'—'}</td>
+        <td style="padding:8px 10px"><span style="display:inline-flex;align-items:center;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:500;background:${badgeBg};color:${badgeColor}">${badgeText}</span></td>
+        <td style="padding:8px 10px;font-size:11px;color:var(--color-text-tertiary)">${r['Ghi chu']||'—'}</td>
       </tr>`;
     }).join('');
-    el.innerHTML = `
-      <div style="overflow-x:auto">
-        <table class="table table-sm mb-0" style="font-size:13px">
-          <thead style="background:#f8f9fa">
+
+    el.innerHTML = summaryHtml + recHtml + barHtml + `
+      <div style="overflow-x:auto;background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:12px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
             <tr>
-              <th style="font-size:12px">Ngày</th>
-              <th style="font-size:12px">Tên / Mã mẫu</th>
-              <th style="font-size:12px">Độ sâu</th>
+              <th style="font-size:11px;padding:8px 10px;text-align:left;font-weight:500;color:var(--color-text-secondary);background:var(--color-background-secondary)">Ngày</th>
+              <th style="font-size:11px;padding:8px 10px;text-align:left;font-weight:500;color:var(--color-text-secondary);background:var(--color-background-secondary)">Tên / Mã mẫu</th>
+              <th style="font-size:11px;padding:8px 10px;text-align:left;font-weight:500;color:var(--color-text-secondary);background:var(--color-background-secondary)">Độ sâu</th>
               ${thead}
-              <th style="font-size:12px">Ghi chú</th>
+              <th style="font-size:11px;padding:8px 10px;text-align:left;font-weight:500;color:var(--color-text-secondary);background:var(--color-background-secondary)">Đánh giá</th>
+              <th style="font-size:11px;padding:8px 10px;text-align:left;font-weight:500;color:var(--color-text-secondary);background:var(--color-background-secondary)">Ghi chú</th>
             </tr>
           </thead>
           <tbody>${tbody}</tbody>
         </table>
-      </div>
-      <div style="font-size:11px;color:#adb5bd;padding:8px 4px">
-        ${filtered.length} bản ghi · <span style="color:#dc3545">Màu đỏ</span> = ngoài ngưỡng
+        <div style="font-size:11px;color:var(--color-text-tertiary);padding:8px 12px;display:flex;gap:14px;align-items:center;border-top:0.5px solid var(--color-border-tertiary)">
+          <span>${filtered.length} bản ghi</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#EAF3DE;border:1px solid #C0DD97;margin-right:4px"></span>Trong ngưỡng</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#FCEBEB;border:1px solid #F7C1C1;margin-right:4px"></span>Ngoài ngưỡng</span>
+        </div>
       </div>`;
+
   } catch(e) {
     el.innerHTML = `<div class="text-center text-muted py-4">Lỗi tải dữ liệu: ${e.message}</div>`;
   }
 }
-
-
 
 // ================================================================
 // SMART ALERT SYSTEM - Tự động phân tích & cảnh báo thông minh
