@@ -4856,7 +4856,7 @@ if (_fc) _fc.innerHTML = `
   </div>`;
 
 
-  await fetchRealDataFromGateway();
+  fetchRealDataFromGateway();
   await loadWeatherData();
 }
 
