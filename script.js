@@ -8063,3 +8063,622 @@ async function mdLoadHistory() {
   }
 
 })();
+
+
+// ================================================================
+// FARM CALENDAR — Lịch canh tác thông minh
+// ================================================================
+
+// ── State ──
+let fcLots    = [];   // danh sách lô đất
+let fcEvents  = [];   // sự kiện lịch
+let fcCurYear = new Date().getFullYear();
+let fcCurMonth= new Date().getMonth();
+let fcFilter  = 'all';// lô đang lọc
+
+// ── Hiển thị trang ──
+function showFarmCalendar() {
+  if (!requireLoginForStationDetail()) return;
+  if (typeof allChartsRefreshTimer !== 'undefined' && allChartsRefreshTimer) clearInterval(allChartsRefreshTimer);
+  if (typeof refreshTimer !== 'undefined' && refreshTimer) clearInterval(refreshTimer);
+  hideAllViews();
+  const v = document.getElementById('farmCalendarView');
+  if (v) v.style.display = 'block';
+  if (typeof updateNavActive === 'function') updateNavActive('farmCalendarView');
+  fcLoad();
+  fcShowScreen('lots');
+}
+
+// ── Load/Save localStorage ──
+function fcLoad() {
+  try {
+    const l = localStorage.getItem('rriv_fc_lots');
+    const e = localStorage.getItem('rriv_fc_events');
+    fcLots   = l ? JSON.parse(l) : [];
+    fcEvents = e ? JSON.parse(e) : [];
+  } catch(err) { fcLots=[]; fcEvents=[]; }
+}
+
+function fcSave() {
+  localStorage.setItem('rriv_fc_lots',   JSON.stringify(fcLots));
+  localStorage.setItem('rriv_fc_events', JSON.stringify(fcEvents));
+}
+
+// ── Tab switching ──
+function fcShowScreen(id) {
+  document.querySelectorAll('.fc-screen').forEach(s => s.classList.remove('on'));
+  document.querySelectorAll('.fc-tab').forEach(t => t.classList.remove('on'));
+  const sc = document.getElementById('fc-sc-' + id);
+  const tabs = document.querySelectorAll('.fc-tab');
+  const map = { lots:0, add:1, cal:2 };
+  if (sc) sc.classList.add('on');
+  if (tabs[map[id]]) tabs[map[id]].classList.add('on');
+  if (id === 'lots') fcRenderLots();
+  if (id === 'add')  fcResetForm();
+  if (id === 'cal')  fcRenderCal();
+}
+
+// ── Helpers ──
+function fcCropName(key) {
+  const m = { cao_su:'Cao su', dieu:'Điều', ca_phe:'Cà phê', ho_tieu:'Hồ tiêu',
+    sau_rieng:'Sầu riêng', xoai:'Xoài', buoi:'Bưởi', mit:'Mít',
+    khoai_mi:'Khoai mì', bap:'Bắp', dau_phong:'Đậu phộng', rau_mau:'Rau màu', khac:'Khác' };
+  return m[key] || key;
+}
+
+function fcCalcAge(plantDate) {
+  if (!plantDate) return '';
+  const d = new Date(plantDate), now = new Date();
+  const diffMs = now - d;
+  if (diffMs < 0) return 'Chưa trồng';
+  const days = Math.floor(diffMs / 86400000);
+  if (days < 30) return days + ' ngày';
+  const months = Math.floor(days / 30);
+  if (months < 12) return months + ' tháng';
+  const years = Math.floor(months / 12);
+  const rem   = months % 12;
+  return rem > 0 ? `${years} năm ${rem} tháng` : `${years} năm`;
+}
+
+function fcCalcPhase(cropKey, plantDate) {
+  if (!plantDate) return { key:'new', label:'Chưa xác định', cls:'fc-phase-new' };
+  const days = Math.floor((new Date() - new Date(plantDate)) / 86400000);
+  if (days < 0) return { key:'new', label:'Chưa trồng', cls:'fc-phase-new' };
+
+  const phases = {
+    cao_su:    [[0,365*1,'Mới trồng','new'], [365,365*3,'Kiến thiết cơ bản','grow'], [365*3,999999,'Khai thác','harvest']],
+    dieu:      [[0,180,'Mới trồng','new'], [180,365*3,'Sinh trưởng','grow'], [365*3,999999,'Cho trái','harvest']],
+    sau_rieng: [[0,365,'Mới trồng','new'], [365,365*4,'Sinh trưởng','grow'], [365*4,999999,'Ra hoa/Trái','flower']],
+    khoai_mi:  [[0,60,'Mới trồng','new'], [60,240,'Sinh trưởng','grow'], [240,999999,'Sắp thu hoạch','harvest']],
+    rau_mau:   [[0,30,'Mới trồng','new'], [30,60,'Sinh trưởng','grow'], [60,999999,'Thu hoạch','harvest']],
+  };
+  const clsMap = { new:'fc-phase-new', grow:'fc-phase-grow', flower:'fc-phase-flower', harvest:'fc-phase-harvest' };
+  const labelMap = { new:'Mới trồng', grow:'Sinh trưởng', flower:'Ra hoa', harvest:'Sắp thu hoạch', preharvest:'Sắp thu hoạch' };
+
+  const list = phases[cropKey] || [[0,365,'Mới trồng','new'],[365,365*3,'Sinh trưởng','grow'],[365*3,999999,'Cho trái','harvest']];
+  for (const [lo, hi, label, key] of list) {
+    if (days >= lo && days < hi) return { key, label, cls: clsMap[key] };
+  }
+  return { key:'grow', label:'Sinh trưởng', cls:'fc-phase-grow' };
+}
+
+function fcGetStationData(stationNums) {
+  if (!stationNums || !stationNums.length || typeof stations === 'undefined') return null;
+  const matched = stations.filter(s => {
+    const num = parseInt(String(s.id).replace(/\D/g,''));
+    return stationNums.includes(num) && s.data && s.data.length >= 4 && (s.data[0]||s.data[1]||s.data[3]);
+  });
+  if (!matched.length) return null;
+  return {
+    vwc:  matched.reduce((a,s)=>a+s.data[1],0)/matched.length,
+    ph:   matched.reduce((a,s)=>a+s.data[0],0)/matched.length,
+    ec:   matched.reduce((a,s)=>a+s.data[2],0)/matched.length,
+    temp: matched.reduce((a,s)=>a+s.data[3],0)/matched.length,
+  };
+}
+
+// ── Render danh sách lô ──
+function fcRenderLots() {
+  const grid = document.getElementById('fc-lot-grid');
+  const sumEl= document.getElementById('fc-lots-summary');
+  if (!grid) return;
+
+  if (sumEl) sumEl.textContent = `${fcLots.length} lô đất · ${[...new Set(fcLots.map(l=>l.cropKey).filter(Boolean))].length} loại cây`;
+
+  let html = fcLots.map((lot, idx) => {
+    const data  = fcGetStationData(lot.stations);
+    const phase = lot.phase === 'auto' ? fcCalcPhase(lot.cropKey, lot.plantDate) : { key:lot.phase, label:lot.phase, cls:'fc-phase-grow' };
+    const age   = fcCalcAge(lot.plantDate);
+    const stLabel = (lot.stations||[]).map(n=>'T'+n).join('+');
+
+    let alerts = [];
+    let vwcVal='—', phVal='—';
+    if (data) {
+      vwcVal = data.vwc.toFixed(1)+'%';
+      phVal  = data.ph.toFixed(1);
+      if (data.vwc < 20) alerts.push({text:'Cần tưới ngay', cls:''});
+      else if (data.vwc < 25) alerts.push({text:'Sắp cần tưới', cls:'warn'});
+      if (data.ph < 4.5) alerts.push({text:'pH rất chua — bón vôi', cls:''});
+      else if (data.ph < 5.0) alerts.push({text:'pH chua — theo dõi', cls:'warn'});
+      if (data.ec > 1.5) alerts.push({text:'EC cao', cls:''});
+    }
+    if (!alerts.length) alerts.push({text:'Đang ổn định', cls:'ok'});
+
+    const phaseLabel = { new:'Mới trồng', grow:'Sinh trưởng', flower:'Ra hoa', fruit:'Đậu trái', preharvest:'Sắp thu hoạch', harvest:'Sắp thu hoạch', auto: phase.label }[lot.phase] || phase.label;
+    const phaseCls   = { new:'fc-phase-new', grow:'fc-phase-grow', flower:'fc-phase-flower', fruit:'fc-phase-flower', preharvest:'fc-phase-harvest', harvest:'fc-phase-harvest' }[lot.phase] || phase.cls;
+
+    return `
+      <div class="fc-lot-card">
+        <div class="fc-lot-head">
+          <div class="fc-lot-ht">
+            <div class="fc-lot-name">${lot.name} — ${fcCropName(lot.cropKey)}</div>
+            <span class="fc-lot-station">${stLabel||'Chưa gán'}</span>
+          </div>
+          <div style="font-size:11px;color:#6c757d"><i class="fas fa-leaf" style="font-size:10px"></i> ${fcCropName(lot.cropKey)} · ${lot.area||'—'} ha · Trồng ${lot.plantDate||'—'}</div>
+        </div>
+        <div class="fc-lot-body">
+          <div class="fc-lot-row"><span class="fc-lot-label">Tuổi cây</span><span>${age||'—'}</span></div>
+          <div class="fc-lot-row"><span class="fc-lot-label">Giai đoạn</span><span class="fc-phase ${phaseCls}">${phaseLabel}</span></div>
+          <div class="fc-lot-row"><span class="fc-lot-label">VWC hiện tại</span><span style="font-weight:500;color:${data&&data.vwc<20?'#A32D2D':data&&data.vwc<25?'#854F0B':'#3B6D11'}">${vwcVal}</span></div>
+          <div class="fc-lot-row"><span class="fc-lot-label">pH hiện tại</span><span style="font-weight:500;color:${data&&data.ph<4.5?'#A32D2D':data&&data.ph<5.0?'#854F0B':'#3B6D11'}">${phVal}</span></div>
+        </div>
+        <div class="fc-lot-alerts">${alerts.map(a=>`<span class="fc-alert-chip ${a.cls}">${a.text}</span>`).join('')}</div>
+        <div class="fc-lot-foot">
+          <div class="fc-lot-btn fc-lot-btn-green" onclick="fcShowScreen('cal')"><i class="fas fa-calendar" style="font-size:11px"></i> Xem lịch</div>
+          <div class="fc-lot-btn" onclick="fcEditLot(${idx})"><i class="fas fa-edit" style="font-size:11px"></i> Sửa</div>
+          <div class="fc-lot-btn" style="color:#dc3545;border-color:#dc3545;flex:0;padding:0 8px" onclick="fcDeleteLot(${idx})"><i class="fas fa-trash" style="font-size:11px"></i></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  html += `<div class="fc-add-card" onclick="fcShowScreen('add')">
+    <i class="fas fa-plus" style="font-size:24px"></i>
+    <div style="font-size:12px">Thêm lô đất mới</div>
+  </div>`;
+
+  grid.innerHTML = html;
+}
+
+// ── Form thêm/sửa ──
+function fcResetForm() {
+  ['fc-edit-id','fc-name','fc-area','fc-variety','fc-plant-date','fc-harvest-date','fc-note'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const crop = document.getElementById('fc-crop');
+  if (crop) crop.value = '';
+  const phase = document.getElementById('fc-phase');
+  if (phase) phase.value = 'auto';
+  const freq = document.getElementById('fc-water-freq');
+  if (freq) freq.value = '3';
+  const time = document.getElementById('fc-water-time');
+  if (time) time.value = 'morning';
+  const vwc = document.getElementById('fc-vwc-min');
+  if (vwc) vwc.value = '25';
+  Array.from(document.getElementById('fc-stations')?.options||[]).forEach(o => o.selected = false);
+  document.getElementById('fc-preview-list').innerHTML = '';
+  document.getElementById('fc-preview-sub').textContent = 'Điền thông tin cây để xem trước lịch';
+  document.getElementById('fc-age-hint').textContent = '';
+}
+
+function fcEditLot(idx) {
+  const lot = fcLots[idx];
+  if (!lot) return;
+  fcShowScreen('add');
+  document.getElementById('fc-edit-id').value   = idx;
+  document.getElementById('fc-name').value       = lot.name||'';
+  document.getElementById('fc-area').value       = lot.area||'';
+  document.getElementById('fc-crop').value       = lot.cropKey||'';
+  document.getElementById('fc-variety').value    = lot.variety||'';
+  document.getElementById('fc-plant-date').value = lot.plantDate||'';
+  document.getElementById('fc-harvest-date').value = lot.harvestDate||'';
+  document.getElementById('fc-phase').value      = lot.phase||'auto';
+  document.getElementById('fc-vwc-min').value    = lot.vwcMin||25;
+  document.getElementById('fc-water-freq').value = lot.waterFreq||'3';
+  document.getElementById('fc-water-time').value = lot.waterTime||'morning';
+  document.getElementById('fc-note').value       = lot.note||'';
+  Array.from(document.getElementById('fc-stations')?.options||[]).forEach(o => {
+    o.selected = (lot.stations||[]).includes(parseInt(o.value));
+  });
+  fcUpdatePreview();
+}
+
+function fcDeleteLot(idx) {
+  if (!confirm(`Xóa lô "${fcLots[idx]?.name}"? Các sự kiện liên quan cũng bị xóa.`)) return;
+  const lotName = fcLots[idx]?.name;
+  fcLots.splice(idx, 1);
+  fcEvents = fcEvents.filter(e => e.lot !== lotName);
+  fcSave();
+  fcRenderLots();
+  showToast('Đã xóa lô đất', 'success');
+}
+
+function fcUpdatePreview() {
+  const crop  = document.getElementById('fc-crop')?.value;
+  const pdate = document.getElementById('fc-plant-date')?.value;
+  const ageEl = document.getElementById('fc-age-hint');
+  const preEl = document.getElementById('fc-preview-list');
+  const subEl = document.getElementById('fc-preview-sub');
+  if (ageEl && pdate) ageEl.textContent = 'Tuổi cây: ' + fcCalcAge(pdate);
+  if (!crop || !pdate) { if(preEl) preEl.innerHTML=''; return; }
+  const phase = fcCalcPhase(crop, pdate);
+  const data  = fcGetStationData([1,2,3,4,5,6].filter(n => {
+    const opts = document.getElementById('fc-stations')?.options;
+    return opts && Array.from(opts).some(o => parseInt(o.value)===n && o.selected);
+  }));
+  if (subEl) subEl.textContent = `Dựa trên: ${fcCropName(crop)} · ${fcCalcAge(pdate)} · Giai đoạn: ${phase.label}`;
+  const today = new Date();
+  const fmtDate = d => d.toLocaleDateString('vi-VN');
+  let items = [];
+  // Tưới
+  const needWater = data && data.vwc < 25;
+  const waterDay  = new Date(today); waterDay.setDate(today.getDate()+(needWater?0:2));
+  items.push({ icon:'💧', bg:'#E6F1FB', name:'Tưới nước', sub: needWater?'VWC thấp — cần tưới ngay':'Tưới định kỳ sáng sớm 5–7h', date: fmtDate(waterDay) + (needWater?'':' + mỗi 3 ngày') });
+  // Vôi/phân
+  if (data && data.ph < 5.0) {
+    const limeDay = new Date(today); limeDay.setDate(today.getDate()+2);
+    items.push({ icon:'⚗️', bg:'#FCEBEB', name:`Bón vôi — pH ${data.ph.toFixed(1)}`, sub:'1–2 tấn/ha, trước bón phân N', date: fmtDate(limeDay) });
+    const fertDay = new Date(today); fertDay.setDate(today.getDate()+30);
+    items.push({ icon:'🌿', bg:'#EAF3DE', name:'Bón phân NPK', sub:'Sau bón vôi 3–4 tuần', date: fmtDate(fertDay) });
+  } else {
+    const fertDay = new Date(today); fertDay.setDate(today.getDate()+7);
+    items.push({ icon:'🌿', bg:'#EAF3DE', name:'Bón phân định kỳ', sub:'Theo giai đoạn sinh trưởng', date: fmtDate(fertDay) });
+  }
+  // Lấy mẫu
+  const sampleDay = new Date(today); sampleDay.setDate(today.getDate()+14);
+  items.push({ icon:'🧪', bg:'#EEEDFE', name:'Lấy mẫu đất', sub:'Kiểm tra N/P/K định kỳ', date: fmtDate(sampleDay) });
+  // Phun
+  const ndviLow = typeof lastNDVIData!=='undefined' && lastNDVIData?.valid && ((lastNDVIData.S2_411.nir-lastNDVIData.S2_411.red)/(lastNDVIData.S2_411.nir+lastNDVIData.S2_411.red||0.001)) < 0.3;
+  if (ndviLow) {
+    const sprayDay = new Date(today); sprayDay.setDate(today.getDate()+3);
+    items.push({ icon:'🚿', bg:'#FAEEDA', name:'Phun thuốc sâu/nấm', sub:'NDVI thấp — kiểm tra sâu bệnh', date: fmtDate(sprayDay) });
+  }
+  if (preEl) preEl.innerHTML = items.map(it => `
+    <div class="fc-prev-item">
+      <div class="fc-prev-icon" style="background:${it.bg}">${it.icon}</div>
+      <div style="flex:1"><div class="fc-prev-name">${it.name}</div><div class="fc-prev-sub">${it.sub}</div></div>
+      <div class="fc-prev-date">${it.date}</div>
+    </div>`).join('');
+}
+
+function fcSaveLot() {
+  const name  = document.getElementById('fc-name')?.value?.trim();
+  const crop  = document.getElementById('fc-crop')?.value;
+  const pdate = document.getElementById('fc-plant-date')?.value;
+  if (!name) { showToast('Vui lòng nhập tên lô đất','error'); return; }
+  if (!crop) { showToast('Vui lòng chọn loại cây','error'); return; }
+  if (!pdate) { showToast('Vui lòng nhập ngày trồng','error'); return; }
+
+  const stations = Array.from(document.getElementById('fc-stations')?.options||[])
+    .filter(o=>o.selected).map(o=>parseInt(o.value));
+
+  const lot = {
+    name, cropKey: crop,
+    variety: document.getElementById('fc-variety')?.value||'',
+    area:    document.getElementById('fc-area')?.value||'',
+    stations,
+    plantDate:   pdate,
+    harvestDate: document.getElementById('fc-harvest-date')?.value||'',
+    phase:   document.getElementById('fc-phase')?.value||'auto',
+    vwcMin:  parseFloat(document.getElementById('fc-vwc-min')?.value)||25,
+    waterFreq: document.getElementById('fc-water-freq')?.value||'3',
+    waterTime: document.getElementById('fc-water-time')?.value||'morning',
+    note:    document.getElementById('fc-note')?.value||'',
+    createdAt: new Date().toISOString()
+  };
+
+  const editId = document.getElementById('fc-edit-id')?.value;
+  if (editId !== '' && editId !== undefined && editId !== null && !isNaN(editId)) {
+    fcLots[parseInt(editId)] = lot;
+  } else {
+    fcLots.push(lot);
+  }
+  fcSave();
+  fcAutoGenerateForLot(lot);
+  fcSave();
+  showToast(`✅ Đã lưu lô "${name}" và tạo lịch tự động`,'success');
+  fcShowScreen('lots');
+}
+
+// ── Tự tạo sự kiện từ cảm biến ──
+function fcAutoGenerateForLot(lot) {
+  // Xóa event cũ của lô này (tự động)
+  fcEvents = fcEvents.filter(e => !(e.lot === lot.name && e.auto));
+  const data  = fcGetStationData(lot.stations);
+  const today = new Date();
+  const addEv = (type, name, daysOffset, note, repeat=0) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + daysOffset);
+    fcEvents.push({
+      id: Date.now() + Math.random(),
+      type, name, lot: lot.name,
+      date: d.toISOString().slice(0,10),
+      note, auto: true, done: false,
+      repeat, // ngày lặp lại
+    });
+  };
+
+  // Tưới nước
+  const freq = parseInt(lot.waterFreq)||3;
+  const needWater = data && data.vwc < (lot.vwcMin||25);
+  if (needWater) addEv('w','Tưới nước — '+lot.name, 0, `VWC ${data.vwc.toFixed(1)}% — dưới ngưỡng ${lot.vwcMin}%`, freq);
+  else addEv('w','Tưới nước — '+lot.name, freq, `Tưới theo lịch định kỳ mỗi ${freq} ngày`, freq);
+
+  // pH
+  if (data && data.ph < 5.0) {
+    addEv('f','Bón vôi — '+lot.name, 2, `pH=${data.ph.toFixed(1)} — bón vôi 1-2 tấn/ha. Chờ 3-4 tuần rồi bón phân N.`);
+    addEv('f','Bón phân NPK — '+lot.name, 30, 'Bón phân sau khi pH cải thiện từ bón vôi');
+  } else {
+    addEv('f','Bón phân định kỳ — '+lot.name, 14, 'Bón phân NPK theo giai đoạn sinh trưởng');
+  }
+
+  // Lấy mẫu
+  addEv('m','Lấy mẫu đất — '+lot.name, 14, 'Kiểm tra N/P/K định kỳ, gửi lab phân tích');
+
+  // EC cao
+  if (data && data.ec > 1.5) addEv('r','Xử lý EC cao — '+lot.name, 1, `EC=${data.ec.toFixed(2)} dS/m — rửa mặn bằng tưới ngập 2-3 lần`);
+
+  // Nhiệt độ
+  if (data && data.temp > 35) addEv('r','Che phủ đất — '+lot.name, 0, `T đất=${data.temp.toFixed(1)}°C — che phủ gốc bằng rơm để hạ nhiệt`);
+
+  // NDVI thấp
+  const ndviVal = typeof lastNDVIData!=='undefined' && lastNDVIData?.valid
+    ? (lastNDVIData.S2_411.nir - lastNDVIData.S2_411.red) / ((lastNDVIData.S2_411.nir + lastNDVIData.S2_411.red)||0.001)
+    : null;
+  if (ndviVal !== null && ndviVal < 0.3) addEv('s','Phun thuốc sâu/nấm — '+lot.name, 3, `NDVI=${ndviVal.toFixed(3)} thấp — kiểm tra và phun phòng ngừa`);
+}
+
+function fcAutoGenerate() {
+  if (!fcLots.length) { showToast('Chưa có lô đất nào. Thêm lô đất trước!','error'); return; }
+  fcLots.forEach(lot => fcAutoGenerateForLot(lot));
+  fcSave();
+  fcRenderCal();
+  showToast(`✅ Đã tạo lịch tự động cho ${fcLots.length} lô đất`,'success');
+}
+
+// ── Render Calendar ──
+function fcRenderCal() {
+  const label = document.getElementById('fc-month-label');
+  if (label) label.textContent = `Tháng ${fcCurMonth+1} / ${fcCurYear}`;
+
+  // Pills lô đất
+  const pillsEl = document.getElementById('fc-lot-pills');
+  if (pillsEl) {
+    pillsEl.innerHTML = `<div class="fc-lot-pill on" onclick="fcFilterLot('all',this)">Tất cả</div>` +
+      fcLots.map(l=>`<div class="fc-lot-pill" onclick="fcFilterLot('${l.name}',this)">${l.name}</div>`).join('');
+  }
+
+  // Summary
+  const sumEl = document.getElementById('fc-export-summary');
+  const monthEvs = fcEvents.filter(e => {
+    const d = new Date(e.date);
+    return d.getFullYear()===fcCurYear && d.getMonth()===fcCurMonth;
+  });
+  if (sumEl) sumEl.textContent = `Xuất lịch tháng ${fcCurMonth+1} — ${monthEvs.length} sự kiện · ${fcLots.length} lô`;
+
+  fcRenderCalGrid();
+}
+
+function fcRenderCalGrid() {
+  const grid = document.getElementById('fc-cal-grid');
+  if (!grid) return;
+
+  const firstDay = new Date(fcCurYear, fcCurMonth, 1);
+  const lastDay  = new Date(fcCurYear, fcCurMonth+1, 0);
+  const today    = new Date();
+  today.setHours(0,0,0,0);
+
+  // Ngày bắt đầu (Thứ 2 = 0)
+  let startDow = firstDay.getDay(); // 0=CN
+  startDow = (startDow === 0 ? 6 : startDow - 1); // CN về cuối
+
+  let html = '';
+
+  // Ô tháng trước
+  for (let i = startDow - 1; i >= 0; i--) {
+    const d = new Date(firstDay); d.setDate(d.getDate()-i-1);
+    html += `<div class="fc-cell fc-other"><div class="fc-dn">${d.getDate()}</div></div>`;
+  }
+
+  // Ô tháng này
+  for (let day = 1; day <= lastDay.getDate(); day++) {
+    const d = new Date(fcCurYear, fcCurMonth, day);
+    const isToday = d.getTime() === today.getTime();
+    const dateStr = d.toISOString().slice(0,10);
+
+    // Lấy events của ngày này + expand repeat
+    const dayEvs = fcGetEventsForDate(dateStr);
+    const filtered = fcFilter === 'all' ? dayEvs : dayEvs.filter(e => e.lot === fcFilter);
+    const evHtml = filtered.slice(0,3).map(e =>
+      `<div class="fc-ev fc-ev-${e.type}" title="${e.name}: ${e.note||''}">
+        <span class="fc-at">${e.lot||''}</span>${e.name.split('—')[0].trim()}
+      </div>`).join('') + (filtered.length>3?`<div style="font-size:10px;color:#adb5bd;padding:0 3px">+${filtered.length-3} nữa</div>`:'');
+
+    html += `<div class="fc-cell${isToday?' fc-today':''}" onclick="fcOpenAddEventModal('${dateStr}')">
+      <div class="fc-dn">${day}</div>${evHtml}
+    </div>`;
+  }
+
+  // Ô tháng sau
+  const endDow = lastDay.getDay();
+  const remaining = endDow === 0 ? 0 : 7 - endDow;
+  for (let i = 1; i <= remaining; i++) {
+    html += `<div class="fc-cell fc-other"><div class="fc-dn">${i}</div></div>`;
+  }
+
+  grid.innerHTML = html;
+}
+
+function fcGetEventsForDate(dateStr) {
+  const result = [];
+  const d = new Date(dateStr);
+  fcEvents.forEach(e => {
+    const evDate = new Date(e.date);
+    if (e.repeat && e.repeat > 0) {
+      // Check nếu dateStr là ngày lặp
+      const diffDays = Math.round((d - evDate) / 86400000);
+      if (diffDays >= 0 && diffDays % e.repeat === 0) result.push(e);
+    } else {
+      if (e.date === dateStr) result.push(e);
+    }
+  });
+  return result;
+}
+
+function fcFilterLot(name, el) {
+  fcFilter = name;
+  document.querySelectorAll('.fc-lot-pill').forEach(p => p.classList.remove('on'));
+  if (el) el.classList.add('on');
+  fcRenderCalGrid();
+}
+
+function fcChangeMonth(delta) {
+  fcCurMonth += delta;
+  if (fcCurMonth > 11) { fcCurMonth = 0; fcCurYear++; }
+  if (fcCurMonth < 0)  { fcCurMonth = 11; fcCurYear--; }
+  fcRenderCal();
+}
+
+function fcGoToday() {
+  fcCurYear  = new Date().getFullYear();
+  fcCurMonth = new Date().getMonth();
+  fcRenderCal();
+}
+
+// ── Modal thêm sự kiện ──
+function fcOpenAddEventModal(dateStr) {
+  const modal = document.getElementById('fc-modal');
+  if (!modal) return;
+  if (dateStr) {
+    const el = document.getElementById('fc-ev-date');
+    if (el) el.value = dateStr;
+  }
+  // Populate lot select
+  const lotSel = document.getElementById('fc-ev-lot');
+  if (lotSel) {
+    lotSel.innerHTML = '<option value="">Tất cả lô</option>' +
+      fcLots.map(l=>`<option value="${l.name}">${l.name}</option>`).join('');
+  }
+  modal.classList.add('open');
+}
+
+function fcCloseModal() {
+  const modal = document.getElementById('fc-modal');
+  if (modal) modal.classList.remove('open');
+}
+
+document.getElementById('fc-ev-repeat')?.addEventListener('change', function() {
+  const wrap = document.getElementById('fc-ev-until-wrap');
+  if (wrap) wrap.style.display = this.value !== '0' ? 'block' : 'none';
+});
+
+function fcSaveEvent() {
+  const type   = document.getElementById('fc-ev-type')?.value;
+  const name   = document.getElementById('fc-ev-name')?.value?.trim();
+  const date   = document.getElementById('fc-ev-date')?.value;
+  const lot    = document.getElementById('fc-ev-lot')?.value||'';
+  const repeat = parseInt(document.getElementById('fc-ev-repeat')?.value)||0;
+  const note   = document.getElementById('fc-ev-note')?.value||'';
+  if (!name) { showToast('Vui lòng nhập tên công việc','error'); return; }
+  if (!date) { showToast('Vui lòng chọn ngày','error'); return; }
+
+  fcEvents.push({ id:Date.now(), type, name, lot, date, note, repeat, auto:false, done:false });
+  fcSave();
+  fcCloseModal();
+  fcRenderCalGrid();
+  showToast('✅ Đã thêm sự kiện vào lịch','success');
+  // Reset form
+  ['fc-ev-name','fc-ev-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+}
+
+// ── Xuất Excel ──
+function fcExportExcel() {
+  const monthEvs = fcEvents.filter(e => {
+    const d = new Date(e.date);
+    return d.getFullYear()===fcCurYear && d.getMonth()===fcCurMonth;
+  }).sort((a,b)=>a.date.localeCompare(b.date));
+
+  const typeLabel = { w:'Tưới nước', f:'Bón phân', s:'Phun thuốc', m:'Lấy mẫu đất', h:'Thu hoạch', r:'Việc khác' };
+  const rows = [['Ngày','Loại','Tên công việc','Lô đất','Ghi chú nhân viên','Nguồn']];
+  monthEvs.forEach(e => {
+    rows.push([
+      new Date(e.date).toLocaleDateString('vi-VN'),
+      typeLabel[e.type]||e.type,
+      e.name, e.lot||'—', e.note||'—',
+      e.auto?'Tự động từ cảm biến':'Nhập thủ công'
+    ]);
+  });
+
+  const csvContent = '\uFEFF' + rows.map(r => r.map(c=>`"${c}"`).join(',')).join('\n');
+  const blob = new Blob([csvContent], {type:'text/csv;charset=utf-8;'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `LichCanhTac_T${fcCurMonth+1}_${fcCurYear}.csv`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  showToast('✅ Đã xuất Excel','success');
+}
+
+// ── Xuất PDF ──
+function fcExportPDF() {
+  const monthEvs = fcEvents.filter(e => {
+    const d = new Date(e.date);
+    return d.getFullYear()===fcCurYear && d.getMonth()===fcCurMonth;
+  }).sort((a,b)=>a.date.localeCompare(b.date));
+
+  const typeLabel = { w:'💧 Tưới nước', f:'🌿 Bón phân', s:'🚿 Phun thuốc', m:'🧪 Lấy mẫu', h:'🌾 Thu hoạch', r:'📌 Việc khác' };
+  const typeColor = { w:'#E6F1FB', f:'#EAF3DE', s:'#FAEEDA', m:'#EEEDFE', h:'#FCEBEB', r:'#F1EFE8' };
+
+  const rows = monthEvs.map(e => `
+    <tr style="border-bottom:1px solid #f0f0f0">
+      <td style="padding:6px 8px;font-size:12px">${new Date(e.date).toLocaleDateString('vi-VN')}</td>
+      <td style="padding:6px 8px"><span style="background:${typeColor[e.type]||'#f8f9fa'};padding:2px 8px;border-radius:8px;font-size:11px">${typeLabel[e.type]||e.type}</span></td>
+      <td style="padding:6px 8px;font-size:12px;font-weight:500">${e.name}</td>
+      <td style="padding:6px 8px;font-size:12px">${e.lot||'—'}</td>
+      <td style="padding:6px 8px;font-size:11px;color:#6c757d">${e.note||'—'}</td>
+    </tr>`).join('');
+
+  const lotSummary = fcLots.map(l=>`<b>${l.name}</b>: ${fcCropName(l.cropKey)} · ${l.area||'?'} ha`).join(' &nbsp;|&nbsp; ');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Lịch canh tác tháng ${fcCurMonth+1}/${fcCurYear}</title>
+  <style>
+    body{font-family:Arial,sans-serif;padding:24px;color:#212529}
+    h1{font-size:18px;margin-bottom:4px}
+    .sub{font-size:12px;color:#6c757d;margin-bottom:16px}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th{background:#f8f9fa;padding:8px;text-align:left;font-size:11px;color:#6c757d;border-bottom:2px solid #dee2e6}
+    @media print{body{padding:0}}
+  </style></head><body>
+  <h1>🌾 Lịch canh tác — Tháng ${fcCurMonth+1}/${fcCurYear}</h1>
+  <div class="sub">Hệ thống MIA · ${lotSummary} · Xuất ngày ${new Date().toLocaleDateString('vi-VN')}</div>
+  <table>
+    <thead><tr>
+      <th>Ngày</th><th>Loại</th><th>Công việc</th><th>Lô đất</th><th>Ghi chú nhân viên</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div style="margin-top:16px;font-size:11px;color:#adb5bd">
+    Tổng: ${monthEvs.length} sự kiện · ${monthEvs.filter(e=>e.auto).length} tự động từ cảm biến · ${monthEvs.filter(e=>!e.auto).length} thủ công
+  </div>
+  </body></html>`;
+
+  const win = window.open('','_blank');
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+    setTimeout(()=>win.print(), 500);
+  }
+}
+
+// ── Thêm farmCalendarView vào hideAllViews ──
+(function patchHideAllViews() {
+  const orig = window.updateAllDisplays;
+  const origHide = window.hideAllViews;
+  window.hideAllViews = function() {
+    if (origHide) origHide();
+    const fc = document.getElementById('farmCalendarView');
+    if (fc) fc.style.display = 'none';
+  };
+})();
