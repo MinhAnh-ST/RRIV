@@ -44,6 +44,9 @@
       <a href="#" onclick="showManualData()" class="nav-item" title="Nhập liệu thủ công">
         <i class="fa-solid fa-clipboard-list"></i>
       </a>
+      <a href="#" onclick="showFarmCalendar()" class="nav-item" title="Lịch canh tác">
+      <i class="fa-solid fa-calendar-days"></i>
+      </a>
       <a href="#" onclick="showAIExpert()" class="nav-item" title="AI Chuyên gia">
         <i class="fa-solid fa-robot"></i>
       </a>
@@ -1032,7 +1035,334 @@
         </div>
       </div>
 
+<!--TRANG LICH CANH TAC-->
 
+      <div id="farmCalendarView" style="display:none;">
+  <style>
+    #farmCalendarView { background:#f0f2f5; padding:10px; }
+    .fc-tabs { display:flex; gap:0; border:0.5px solid #dee2e6; border-radius:10px; overflow:hidden; margin-bottom:1rem; width:fit-content; }
+    .fc-tab { padding:7px 16px; font-size:12px; cursor:pointer; border-right:0.5px solid #dee2e6; background:#f8f9fa; color:#6c757d; }
+    .fc-tab:last-child { border-right:none; }
+    .fc-tab.on { background:#fff; color:#212529; font-weight:500; }
+    .fc-screen { display:none; } .fc-screen.on { display:block; }
+    .fc-topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; gap:8px; flex-wrap:wrap; }
+    .fc-btn { height:30px; padding:0 11px; border:0.5px solid #dee2e6; border-radius:8px; background:#fff; color:#212529; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; }
+    .fc-btn:hover { background:#f8f9fa; }
+    .fc-btn-green { background:#3B6D11; color:#fff; border-color:#3B6D11; }
+    .fc-btn-green:hover { background:#27500A; }
+    .fc-btn-blue { background:#185FA5; color:#fff; border-color:#185FA5; }
+    .fc-btn-blue:hover { background:#0C447C; }
+    .fc-btn-amber { background:#854F0B; color:#fff; border-color:#854F0B; }
+    .fc-lot-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:1rem; }
+    @media(max-width:900px){ .fc-lot-grid { grid-template-columns:repeat(2,1fr); } }
+    @media(max-width:600px){ .fc-lot-grid { grid-template-columns:1fr; } }
+    .fc-lot-card { background:#fff; border:0.5px solid #e9ecef; border-radius:12px; overflow:hidden; cursor:pointer; transition:border-color .15s; }
+    .fc-lot-card:hover { border-color:#adb5bd; }
+    .fc-lot-card.selected { border:1.5px solid #3B6D11; }
+    .fc-lot-head { padding:10px 12px 8px; border-bottom:0.5px solid #f0f0f0; }
+    .fc-lot-ht { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px; }
+    .fc-lot-name { font-size:13px; font-weight:500; }
+    .fc-lot-station { font-size:10px; padding:2px 7px; border-radius:10px; background:#E6F1FB; color:#0C447C; }
+    .fc-lot-body { padding:8px 12px; }
+    .fc-lot-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; font-size:12px; }
+    .fc-lot-label { color:#adb5bd; font-size:11px; }
+    .fc-phase { font-size:10px; padding:2px 7px; border-radius:10px; }
+    .fc-phase-grow { background:#EAF3DE; color:#27500A; }
+    .fc-phase-flower { background:#FAEEDA; color:#633806; }
+    .fc-phase-harvest { background:#FCEBEB; color:#791F1F; }
+    .fc-phase-new { background:#EEEDFE; color:#3C3489; }
+    .fc-lot-alerts { padding:6px 12px; border-top:0.5px solid #f0f0f0; display:flex; gap:4px; flex-wrap:wrap; }
+    .fc-alert-chip { font-size:10px; padding:1px 7px; border-radius:8px; background:#FCEBEB; color:#791F1F; }
+    .fc-alert-chip.warn { background:#FAEEDA; color:#633806; }
+    .fc-alert-chip.ok { background:#EAF3DE; color:#27500A; }
+    .fc-lot-foot { padding:8px 12px; border-top:0.5px solid #f0f0f0; display:flex; gap:6px; }
+    .fc-lot-btn { flex:1; height:26px; border:0.5px solid #dee2e6; border-radius:6px; font-size:11px; cursor:pointer; background:#fff; display:inline-flex; align-items:center; justify-content:center; gap:4px; }
+    .fc-lot-btn:hover { background:#f8f9fa; }
+    .fc-lot-btn-green { background:#EAF3DE; color:#27500A; border-color:#3B6D11; }
+    .fc-add-card { background:#f8f9fa; border:1px dashed #dee2e6; border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; cursor:pointer; min-height:160px; color:#adb5bd; }
+    .fc-add-card:hover { background:#fff; color:#6c757d; }
+    .fc-detail-wrap { display:grid; grid-template-columns:1fr 280px; gap:1rem; }
+    @media(max-width:800px){ .fc-detail-wrap { grid-template-columns:1fr; } }
+    .fc-form-box { background:#fff; border:0.5px solid #e9ecef; border-radius:12px; padding:14px; }
+    .fc-form-title { font-size:13px; font-weight:500; margin-bottom:12px; display:flex; align-items:center; gap:7px; padding-bottom:10px; border-bottom:0.5px solid #f0f0f0; }
+    .fc-fr { margin-bottom:10px; }
+    .fc-fr label { font-size:11px; color:#6c757d; display:block; margin-bottom:4px; font-weight:500; }
+    .fc-fr input,.fc-fr select,.fc-fr textarea { width:100%; border:0.5px solid #dee2e6; border-radius:8px; padding:6px 10px; font-size:12px; }
+    .fc-fr textarea { height:60px; resize:none; }
+    .fc-fr .hint { font-size:10px; color:#adb5bd; margin-top:3px; }
+    .fc-f2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .fc-f3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+    .fc-preview-box { background:#fff; border:0.5px solid #e9ecef; border-radius:12px; padding:14px; }
+    .fc-prev-item { display:flex; gap:8px; padding:7px 0; border-bottom:0.5px solid #f0f0f0; }
+    .fc-prev-item:last-child { border-bottom:none; }
+    .fc-prev-icon { width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+    .fc-prev-name { font-size:12px; font-weight:500; }
+    .fc-prev-sub { font-size:10px; color:#6c757d; margin-top:1px; }
+    .fc-prev-date { font-size:10px; color:#adb5bd; min-width:50px; text-align:right; }
+    .fc-cal-wrap { background:#fff; border:0.5px solid #e9ecef; border-radius:12px; overflow:hidden; margin-bottom:1rem; }
+    .fc-cal-filter { padding:10px 14px; border-bottom:0.5px solid #f0f0f0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .fc-lot-pills { display:flex; gap:4px; flex-wrap:wrap; }
+    .fc-lot-pill { padding:3px 10px; border-radius:20px; font-size:11px; cursor:pointer; border:0.5px solid #e9ecef; background:#f8f9fa; color:#6c757d; }
+    .fc-lot-pill.on { background:#EAF3DE; color:#27500A; border-color:#3B6D11; }
+    .fc-cal-head { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); border-bottom:0.5px solid #f0f0f0; }
+    .fc-chd { padding:7px 4px; text-align:center; font-size:11px; font-weight:500; color:#6c757d; background:#f8f9fa; }
+    .fc-cal-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); }
+    .fc-cell { min-height:72px; padding:3px; border-right:0.5px solid #f0f0f0; border-bottom:0.5px solid #f0f0f0; cursor:pointer; }
+    .fc-cell:nth-child(7n){ border-right:none; }
+    .fc-cell:hover { background:#f8f9fa; }
+    .fc-cell.fc-today { background:#EAF3DE; }
+    .fc-cell.fc-other .fc-dn { color:#dee2e6; }
+    .fc-dn { font-size:11px; color:#adb5bd; margin-bottom:2px; }
+    .fc-cell.fc-today .fc-dn { color:#3B6D11; font-weight:500; }
+    .fc-ev { border-radius:0; padding:1px 4px; font-size:10px; margin-bottom:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border-left:2px solid transparent; display:block; }
+    .fc-ev-w { background:#E6F1FB; color:#0C447C; border-left-color:#185FA5; }
+    .fc-ev-f { background:#EAF3DE; color:#27500A; border-left-color:#3B6D11; }
+    .fc-ev-s { background:#FAEEDA; color:#633806; border-left-color:#854F0B; }
+    .fc-ev-m { background:#EEEDFE; color:#3C3489; border-left-color:#534AB7; }
+    .fc-ev-h { background:#FCEBEB; color:#791F1F; border-left-color:#A32D2D; }
+    .fc-at { font-size:9px; opacity:.65; margin-right:2px; }
+    .fc-export-bar { background:#fff; border:0.5px solid #e9ecef; border-radius:12px; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+    .fc-modal-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(0,0,0,0.4); z-index:10000; align-items:center; justify-content:center; }
+    .fc-modal-overlay.open { display:flex; }
+    .fc-modal { background:#fff; border-radius:16px; padding:20px; width:420px; max-height:80vh; overflow-y:auto; }
+    .fc-modal-title { font-size:14px; font-weight:500; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; }
+    .fc-divider { border:none; border-top:0.5px solid #f0f0f0; margin:12px 0; }
+  </style>
+
+  <div class="fc-tabs" id="fc-tabs">
+    <div class="fc-tab on" onclick="fcShowScreen('lots')"><i class="fas fa-map me-1"></i>Quản lý lô đất</div>
+    <div class="fc-tab" onclick="fcShowScreen('add')"><i class="fas fa-plus me-1"></i>Thêm / Sửa lô</div>
+    <div class="fc-tab" onclick="fcShowScreen('cal')"><i class="fas fa-calendar me-1"></i>Lịch canh tác</div>
+  </div>
+
+  <!-- Screen 1: Lots -->
+  <div class="fc-screen on" id="fc-sc-lots">
+    <div class="fc-topbar">
+      <div id="fc-lots-summary" style="font-size:12px;color:#6c757d">Đang tải...</div>
+      <div style="display:flex;gap:6px">
+        <button class="fc-btn fc-btn-green" onclick="fcShowScreen('add')"><i class="fas fa-plus me-1"></i>Thêm lô mới</button>
+        <button class="fc-btn fc-btn-blue" onclick="fcShowScreen('cal')"><i class="fas fa-calendar me-1"></i>Xem lịch canh tác</button>
+      </div>
+    </div>
+    <div class="fc-lot-grid" id="fc-lot-grid"></div>
+  </div>
+
+  <!-- Screen 2: Add/Edit -->
+  <div class="fc-screen" id="fc-sc-add">
+    <div class="fc-topbar">
+      <div style="font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px">
+        <i class="fas fa-seedling" style="color:#3B6D11"></i> Thêm / Chỉnh sửa lô đất
+      </div>
+      <button class="fc-btn" onclick="fcShowScreen('lots')"><i class="fas fa-arrow-left me-1"></i>Quay lại</button>
+    </div>
+    <div class="fc-detail-wrap">
+      <div class="fc-form-box">
+        <div class="fc-form-title"><i class="fas fa-map-marker-alt" style="color:#185FA5"></i> Thông tin lô đất</div>
+        <input type="hidden" id="fc-edit-id">
+        <div class="fc-f2">
+          <div class="fc-fr"><label>Tên lô đất *</label><input type="text" id="fc-name" placeholder="VD: Lô A, Ruộng Bắc..."></div>
+          <div class="fc-fr"><label>Diện tích (ha)</label><input type="number" id="fc-area" placeholder="VD: 2.5" step="0.1"></div>
+        </div>
+        <div class="fc-fr">
+          <label>Gán với trạm cảm biến *</label>
+          <select id="fc-stations" multiple style="height:90px">
+            <option value="1">Trạm 1</option>
+            <option value="2">Trạm 2</option>
+            <option value="3">Trạm 3</option>
+            <option value="4">Trạm 4</option>
+            <option value="5">Trạm 5</option>
+            <option value="6">Trạm 6</option>
+          </select>
+          <div class="hint">Giữ Ctrl để chọn nhiều trạm</div>
+        </div>
+        <hr class="fc-divider">
+        <div class="fc-form-title"><i class="fas fa-leaf" style="color:#3B6D11"></i> Thông tin cây trồng</div>
+        <div class="fc-f2">
+          <div class="fc-fr">
+            <label>Loại cây *</label>
+            <select id="fc-crop" onchange="fcUpdatePreview()">
+              <option value="">Chọn loại cây...</option>
+              <optgroup label="Cây công nghiệp">
+                <option value="cao_su">Cao su</option>
+                <option value="dieu">Điều</option>
+                <option value="ca_phe">Cà phê</option>
+                <option value="ho_tieu">Hồ tiêu</option>
+              </optgroup>
+              <optgroup label="Cây ăn trái">
+                <option value="sau_rieng">Sầu riêng</option>
+                <option value="xoai">Xoài</option>
+                <option value="buoi">Bưởi</option>
+                <option value="mit">Mít</option>
+              </optgroup>
+              <optgroup label="Cây ngắn ngày">
+                <option value="khoai_mi">Khoai mì</option>
+                <option value="bap">Bắp</option>
+                <option value="dau_phong">Đậu phộng</option>
+                <option value="rau_mau">Rau màu</option>
+              </optgroup>
+              <option value="khac">Khác</option>
+            </select>
+          </div>
+          <div class="fc-fr"><label>Giống / Tên cụ thể</label><input type="text" id="fc-variety" placeholder="VD: RRIV4, Ri6, Dona..."></div>
+        </div>
+        <div class="fc-f3">
+          <div class="fc-fr">
+            <label>Ngày trồng *</label>
+            <input type="date" id="fc-plant-date" onchange="fcUpdatePreview()">
+            <div class="hint" id="fc-age-hint"></div>
+          </div>
+          <div class="fc-fr">
+            <label>Giai đoạn hiện tại</label>
+            <select id="fc-phase">
+              <option value="auto">Tự động tính</option>
+              <option value="new">Mới trồng</option>
+              <option value="grow">Sinh trưởng</option>
+              <option value="flower">Ra hoa</option>
+              <option value="fruit">Đậu trái</option>
+              <option value="preharvest">Sắp thu hoạch</option>
+            </select>
+          </div>
+          <div class="fc-fr">
+            <label>Dự kiến thu hoạch</label>
+            <input type="date" id="fc-harvest-date">
+            <div class="hint">Để trống = tự tính</div>
+          </div>
+        </div>
+        <hr class="fc-divider">
+        <div class="fc-form-title"><i class="fas fa-sliders-h" style="color:#854F0B"></i> Ngưỡng canh tác</div>
+        <div class="fc-f3">
+          <div class="fc-fr"><label>VWC tối thiểu (%)</label><input type="number" id="fc-vwc-min" placeholder="25" value="25"></div>
+          <div class="fc-fr">
+            <label>Tần suất tưới</label>
+            <select id="fc-water-freq">
+              <option value="1">Mỗi ngày</option>
+              <option value="2">Mỗi 2 ngày</option>
+              <option value="3" selected>Mỗi 3 ngày</option>
+              <option value="7">Mỗi tuần</option>
+              <option value="0">Theo cảm biến</option>
+            </select>
+          </div>
+          <div class="fc-fr">
+            <label>Thời gian tưới</label>
+            <select id="fc-water-time">
+              <option value="morning" selected>Sáng sớm (5–7h)</option>
+              <option value="evening">Chiều mát (16–18h)</option>
+              <option value="flex">Linh hoạt</option>
+            </select>
+          </div>
+        </div>
+        <div class="fc-fr"><label>Ghi chú cho nhân viên</label><textarea id="fc-note" placeholder="VD: Lô này gần ao, thoát nước kém..."></textarea></div>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <button class="fc-btn fc-btn-green" onclick="fcSaveLot()" style="flex:1;justify-content:center"><i class="fas fa-check me-1"></i>Lưu & Tạo lịch tự động</button>
+          <button class="fc-btn" onclick="fcShowScreen('lots')">Hủy</button>
+        </div>
+      </div>
+      <div class="fc-preview-box">
+        <div style="font-size:12px;font-weight:500;margin-bottom:6px;display:flex;align-items:center;gap:6px"><i class="fas fa-magic" style="color:#3B6D11"></i> Lịch sẽ tự tạo</div>
+        <div id="fc-preview-sub" style="font-size:11px;color:#6c757d;margin-bottom:10px">Điền thông tin cây để xem trước lịch</div>
+        <div id="fc-preview-list"></div>
+        <div style="margin-top:10px;padding:8px;background:#f8f9fa;border-radius:8px;font-size:11px;color:#6c757d;line-height:1.6">
+          <i class="fas fa-info-circle" style="color:#185FA5"></i>
+          Lịch tự điều chỉnh theo data cảm biến. Anh có thể sửa từng sự kiện sau.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen 3: Calendar -->
+  <div class="fc-screen" id="fc-sc-cal">
+    <div class="fc-topbar">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <button class="fc-btn" onclick="fcShowScreen('lots')"><i class="fas fa-arrow-left"></i></button>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="fc-btn" onclick="fcChangeMonth(-1)"><i class="fas fa-chevron-left"></i></button>
+          <span id="fc-month-label" style="font-size:14px;font-weight:500;min-width:120px;text-align:center"></span>
+          <button class="fc-btn" onclick="fcChangeMonth(1)"><i class="fas fa-chevron-right"></i></button>
+        </div>
+        <button class="fc-btn" onclick="fcGoToday()">Hôm nay</button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="fc-btn fc-btn-green" onclick="fcAutoGenerate()"><i class="fas fa-magic me-1"></i>Tạo tự động</button>
+        <button class="fc-btn" onclick="fcOpenAddEventModal()"><i class="fas fa-plus me-1"></i>Thêm thủ công</button>
+        <button class="fc-btn fc-btn-amber" onclick="fcExportExcel()"><i class="fas fa-file-excel me-1"></i>Xuất Excel</button>
+        <button class="fc-btn fc-btn-blue" onclick="fcExportPDF()"><i class="fas fa-file-pdf me-1"></i>Xuất PDF</button>
+      </div>
+    </div>
+
+    <div class="fc-cal-wrap">
+      <div class="fc-cal-filter">
+        <span style="font-size:11px;color:#6c757d;font-weight:500">Lọc theo lô:</span>
+        <div class="fc-lot-pills" id="fc-lot-pills"></div>
+      </div>
+      <div class="fc-cal-head">
+        <div class="fc-chd">T2</div><div class="fc-chd">T3</div><div class="fc-chd">T4</div>
+        <div class="fc-chd">T5</div><div class="fc-chd">T6</div>
+        <div class="fc-chd" style="color:#dc3545">T7</div>
+        <div class="fc-chd" style="color:#dc3545">CN</div>
+      </div>
+      <div class="fc-cal-grid" id="fc-cal-grid"></div>
+    </div>
+
+    <div class="fc-export-bar">
+      <div style="font-size:12px;color:#6c757d;display:flex;align-items:center;gap:6px">
+        <i class="fas fa-paper-plane" style="color:#185FA5"></i>
+        <div>
+          <div id="fc-export-summary" style="font-size:12px;font-weight:500;color:#212529"></div>
+          <div style="font-size:11px">Bao gồm ghi chú hướng dẫn cho nhân viên</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="fc-btn" onclick="window.print()"><i class="fas fa-print me-1"></i>In</button>
+        <button class="fc-btn fc-btn-amber" onclick="fcExportExcel()"><i class="fas fa-file-excel me-1"></i>Xuất Excel</button>
+        <button class="fc-btn fc-btn-blue" onclick="fcExportPDF()"><i class="fas fa-file-pdf me-1"></i>Xuất PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal thêm sự kiện -->
+  <div class="fc-modal-overlay" id="fc-modal">
+    <div class="fc-modal">
+      <div class="fc-modal-title">
+        <span><i class="fas fa-plus me-2" style="color:#3B6D11"></i>Thêm sự kiện thủ công</span>
+        <button class="fc-btn" onclick="fcCloseModal()" style="width:28px;padding:0;justify-content:center">✕</button>
+      </div>
+      <div class="fc-fr"><label>Loại hoạt động *</label>
+        <select id="fc-ev-type">
+          <option value="w">💧 Tưới nước</option>
+          <option value="f">🌿 Bón phân</option>
+          <option value="s">🚿 Phun thuốc</option>
+          <option value="m">🧪 Lấy mẫu đất</option>
+          <option value="h">🌾 Thu hoạch</option>
+          <option value="r">📌 Việc khác</option>
+        </select>
+      </div>
+      <div class="fc-fr"><label>Tên công việc *</label><input type="text" id="fc-ev-name" placeholder="VD: Tưới nhỏ giọt Lô A..."></div>
+      <div class="fc-f2">
+        <div class="fc-fr"><label>Ngày *</label><input type="date" id="fc-ev-date"></div>
+        <div class="fc-fr"><label>Lô đất</label><select id="fc-ev-lot"></select></div>
+      </div>
+      <div class="fc-fr">
+        <label>Lặp lại</label>
+        <select id="fc-ev-repeat">
+          <option value="0">Không lặp</option>
+          <option value="1">Hàng ngày</option>
+          <option value="2">Mỗi 2 ngày</option>
+          <option value="3">Mỗi 3 ngày</option>
+          <option value="7">Hàng tuần</option>
+        </select>
+      </div>
+      <div class="fc-fr" id="fc-ev-until-wrap" style="display:none">
+        <label>Lặp đến ngày</label>
+        <input type="date" id="fc-ev-until">
+      </div>
+      <div class="fc-fr"><label>Ghi chú nhân viên</label><textarea id="fc-ev-note" placeholder="Hướng dẫn cụ thể cho nhân viên..."></textarea></div>
+      <div style="display:flex;gap:8px">
+        <button class="fc-btn fc-btn-green" onclick="fcSaveEvent()" style="flex:1;justify-content:center"><i class="fas fa-check me-1"></i>Lưu vào lịch</button>
+        <button class="fc-btn" onclick="fcCloseModal()">Hủy</button>
+      </div>
+    </div>
+  </div>
+</div>
       <!----------------------------------------------------------------------------------------------------------->
       <!-- ========== TRANG DỰ BÁO THỜI TIẾT ========== -->
       <div id="weatherView" style="display: none;"></div>
