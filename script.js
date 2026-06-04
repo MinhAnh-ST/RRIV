@@ -7474,8 +7474,19 @@ async function mdLoadHistory() {
     const to     = document.getElementById('md-to')?.value    || new Date().toISOString().slice(0,10);
     let filtered = rows;
     if (search) filtered = filtered.filter(r => (r['Ten mau']||'').toLowerCase().includes(search));
-    if (from)   filtered = filtered.filter(r => (r['Ngay lay mau']||'') >= from);
-    if (to)     filtered = filtered.filter(r => (r['Ngay lay mau']||'') <= to);
+    //if (from)   filtered = filtered.filter(r => (r['Ngay lay mau']||'') >= from);
+    //if (to)     filtered = filtered.filter(r => (r['Ngay lay mau']||'') <= to);
+
+    if (from) filtered = filtered.filter(r => {
+  const d = new Date(r['Ngay lay mau']||'');
+  return !isNaN(d) && d >= new Date(from);
+});
+if (to) filtered = filtered.filter(r => {
+  const d = new Date(r['Ngay lay mau']||'');
+  const toDate = new Date(to);
+  toDate.setHours(23,59,59);
+  return !isNaN(d) && d <= toDate;
+});
 
     const fixed   = ['Timestamp','Ngay lay mau','Ten mau','Do sau','Ghi chu'];
     const dynCols = Object.keys(rows[0]||{}).filter(k => !fixed.includes(k));
