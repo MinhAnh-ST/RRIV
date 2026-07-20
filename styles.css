@@ -2505,5 +2505,17 @@ footer, .footer, [class*="copyright"] {
   padding: 12px;
   box-sizing: border-box;
 }
-
+#farmCalendarView {
+  position: fixed;
+  top: 50px;
+  left: 0;
+  right: 0;
+  bottom: 40px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  background: #f0f2f5;
+  padding: 10px;
+  box-sizing: border-box;
+}
 
