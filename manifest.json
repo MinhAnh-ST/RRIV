@@ -1,1 +1,20 @@
 
+{
+  "name": "MIA - Quan trắc nông nghiệp",
+  "short_name": "MIA",
+  "description": "Hệ thống giám sát đất và cây trồng thông minh",
+  "start_url": "/RRIV/",
+  "scope": "/RRIV/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f0f2f5",
+  "theme_color": "#2d6a0f",
+  "icons": [
+    {
+      "src": "icon_mia_256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
