@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MIA">
+  <meta name="theme-color" content="#2d6a0f">
+  <title>MIA Monitor</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon_mia_256.png">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #f0f2f5; font-family: 'Segoe UI', sans-serif; padding-bottom: 70px; }
+
+    /* Header */
+    .mob-header {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: #2d6a0f; color: white;
+      padding: 12px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    .mob-header-title { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .mob-update-time { font-size: 11px; opacity: 0.8; }
+    .mob-refresh-btn {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: rgba(255,255,255,0.2); border: none; color: white;
+      font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Bottom nav */
+    .mob-bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+      background: white; border-top: 1px solid #e9ecef;
+      display: flex; height: 60px;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.08);
+    }
+    .mob-nav-item {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      font-size: 10px; color: #adb5bd; cursor: pointer;
+      border: none; background: none; gap: 3px;
+      transition: color 0.15s;
+    }
+    .mob-nav-item.active { color: #2d6a0f; }
+    .mob-nav-item i { font-size: 18px; }
+
+    /* Content */
+    .mob-content { margin-top: 60px; padding: 10px; }
+
+    /* Station cards */
+    .mob-station-card {
+      background: white; border-radius: 14px;
+      border: 1px solid #e9ecef; margin-bottom: 10px;
+      overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    .mob-card-header {
+      padding: 10px 14px; display: flex;
+      align-items: center; justify-content: space-between;
+      border-bottom: 1px solid #f5f5f5;
+    }
+    .mob-card-name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .mob-dot { width: 9px; height: 9px; border-radius: 50%; }
+    .mob-dot-on  { background: #28a745; box-shadow: 0 0 0 2px #d4edda; }
+    .mob-dot-off { background: #adb5bd; }
+    .mob-dot-alr { background: #ffc107; box-shadow: 0 0 0 2px #fff3cd; }
+    .mob-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+
+    /* Data grid 4 cột chính */
+    .mob-data-grid {
+      display: grid; grid-template-columns: repeat(4,1fr);
+      gap: 1px; background: #f5f5f5;
+    }
+    .mob-data-cell {
+      background: white; padding: 8px 4px;
+      text-align: center;
+    }
+    .mob-data-label { font-size: 10px; color: #adb5bd; margin-bottom: 3px; }
+    .mob-data-val { font-size: 16px; font-weight: 700; }
+    .mob-data-unit { font-size: 9px; color: #adb5bd; margin-top: 1px; }
+    .mob-val-ok   { color: #27a745; }
+    .mob-val-warn { color: #dc3545; }
+    .mob-val-norm { color: #212529; }
+
+    /* Row 2: N P K CEC nhỏ hơn */
+    .mob-data-grid-2 {
+      display: grid; grid-template-columns: repeat(4,1fr);
+      gap: 1px; background: #f5f5f5; border-top: 1px solid #f0f0f0;
+    }
+    .mob-data-cell-sm {
+      background: #fffdf5; padding: 6px 4px; text-align: center;
+    }
+    .mob-data-label-sm { font-size: 9px; color: #B8860B; margin-bottom: 2px; font-weight: 600; }
+    .mob-data-val-sm { font-size: 13px; font-weight: 700; color: #B8860B; }
+    .mob-data-unit-sm { font-size: 8px; color: #adb5bd; }
+
+    /* Battery */
+    .mob-card-footer {
+      padding: 6px 14px; display: flex;
+      align-items: center; justify-content: space-between;
+      border-top: 1px solid #f5f5f5;
+    }
+    .mob-bat-shell {
+      width: 28px; height: 12px; border: 1.5px solid #adb5bd;
+      border-radius: 2px; padding: 1px; display: inline-flex; align-items: center;
+    }
+    .mob-bat-inner { height: 100%; border-radius: 1px; }
+    .mob-alert-tag {
+      font-size: 10px; color: #dc3545;
+      display: flex; align-items: center; gap: 3px;
+    }
+
+    /* NDVI card */
+    .mob-ndvi-card {
+      background: white; border-radius: 14px;
+      border: 1px solid #e9ecef; margin-bottom: 10px;
+      overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    .mob-ndvi-header {
+      background: linear-gradient(135deg, #2d6a0f, #4CAF50);
+      padding: 10px 14px; color: white;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .mob-ndvi-grid {
+      display: grid; grid-template-columns: repeat(3,1fr);
+      gap: 1px; background: #f5f5f5;
+    }
+    .mob-ndvi-cell { background: white; padding: 10px 6px; text-align: center; }
+    .mob-ndvi-label { font-size: 10px; color: #adb5bd; margin-bottom: 4px; }
+    .mob-ndvi-val { font-size: 18px; font-weight: 700; }
+
+    /* Gauge NDVI */
+    .mob-ndvi-gauge {
+      height: 8px; border-radius: 4px; margin: 8px 14px;
+      background: linear-gradient(to right, #dc3545 0%, #fd7e14 25%, #8bc34a 55%, #2d6a0f 100%);
+      position: relative;
+    }
+    .mob-ndvi-needle {
+      position: absolute; top: -4px; width: 3px; height: 16px;
+      background: #333; border-radius: 2px; transform: translateX(-50%);
+      transition: left 0.5s;
+    }
+
+    /* Loading */
+    .mob-loading {
+      text-align: center; padding: 40px 20px; color: #adb5bd;
+    }
+
+    /* Offline banner */
+    .mob-offline-banner {
+      background: #dc3545; color: white;
+      text-align: center; padding: 6px; font-size: 12px;
+      display: none;
+    }
+
+    /* Alert panel */
+    .mob-alert-card {
+      background: white; border-radius: 14px;
+      border: 1px solid #e9ecef; margin-bottom: 10px;
+      overflow: hidden;
+    }
+    .mob-alert-item {
+      display: flex; gap: 10px; padding: 10px 14px;
+      border-bottom: 1px solid #f5f5f5; align-items: flex-start;
+    }
+    .mob-alert-item:last-child { border-bottom: none; }
+    .mob-alert-icon { font-size: 18px; flex-shrink: 0; }
+    .mob-alert-title { font-size: 12px; font-weight: 600; }
+    .mob-alert-sub { font-size: 11px; color: #6c757d; margin-top: 2px; }
+
+    /* Scrollbar ẩn trên mobile */
+    ::-webkit-scrollbar { display: none; }
+  </style>
+</head>
+<body>
+
+<!-- Offline banner -->
+<div class="mob-offline-banner" id="mob-offline">
+  📡 Mất kết nối — Đang hiển thị dữ liệu cache
+</div>
+
+<!-- Header -->
+<div class="mob-header">
+  <div class="mob-header-title">
+    <span>🌾</span> MIA Monitor
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span class="mob-update-time" id="mob-update-time">--:--</span>
+    <button class="mob-refresh-btn" onclick="mobRefresh()">
+      <i class="fas fa-sync-alt" id="mob-refresh-icon"></i>
+    </button>
+  </div>
+</div>
+
+<!-- Content -->
+<div class="mob-content" id="mob-content">
+  <div class="mob-loading">
+    <i class="fas fa-spinner fa-spin fa-2x mb-3 d-block" style="color:#2d6a0f"></i>
+    Đang tải dữ liệu...
+  </div>
+</div>
+
+<!-- Bottom Nav -->
+<div class="mob-bottom-nav">
+  <button class="mob-nav-item active" id="mob-nav-stations" onclick="mobShowTab('stations')">
+    <i class="fas fa-microchip"></i>
+    <span>Trạm đất</span>
+  </button>
+  <button class="mob-nav-item" id="mob-nav-ndvi" onclick="mobShowTab('ndvi')">
+    <i class="fas fa-leaf"></i>
+    <span>NDVI</span>
+  </button>
+  <button class="mob-nav-item" id="mob-nav-alerts" onclick="mobShowTab('alerts')">
+    <i class="fas fa-bell"></i>
+    <span>Cảnh báo</span>
+    <span id="mob-alert-badge" style="display:none;background:#dc3545;color:white;
+      border-radius:10px;padding:0 5px;font-size:9px;"></span>
+  </button>
+</div>
+
+<script>
+// ── Config ──
+const FIREBASE_URL  = 'https://rrvi-dca60-default-rtdb.asia-southeast1.firebasedatabase.app';
+const FIREBASE_AUTH = 'yiO8BmmDkVjx9dzfn6fqoKJH3NGvotWPZc9kgEhe';
+
+const THRESH = {
+  ph:   { min: 5.5,  max: 8.5  },
+  vwc:  { min: 20,   max: 80   },
+  ec:   { min: 0.1,  max: 2.0  },
+  temp: { min: 15,   max: 40   },
+  bat:  { min: 20,   max: 100  },
+};
+
+let mobData    = { stations: [], ndvi: null };
+let mobTab     = 'stations';
+let mobAlerts  = [];
+
+// ── Fetch Firebase ──
+async function mobFetch() {
+  try {
+    const res  = await fetch(`${FIREBASE_URL}/nodes.json?auth=${FIREBASE_AUTH}`);
+    const data = await res.json();
+    if (!data) return;
+
+    mobData.stations = [];
+    for (let i = 1; i <= 6; i++) {
+      const node = data[`node${i}`];
+      if (!node) { mobData.stations.push(null); continue; }
+      let d = node;
+      const keys = Object.keys(node);
+      if (keys.length && keys[0].startsWith('-')) d = node[keys.sort().pop()];
+      mobData.stations.push({
+        name: `Trạm ${i}`,
+        ph: d.ph||0, vwc: d.vwc||0, ec: d.ec||0, temp: d.temp||0,
+        bat: d.battery||0, charging: d.charging||0,
+        lat: d.lat||0, lng: d.lng||0,
+        hasData: !!(d.ph||d.vwc||d.temp)
+      });
+    }
+
+    // NDVI
+    const ndviNode = data['ndvi'];
+    if (ndviNode) {
+      let d = ndviNode;
+      const keys = Object.keys(ndviNode);
+      if (keys.length && keys[0].startsWith('-')) d = ndviNode[keys.sort().pop()];
+      const r411 = d.red_up||0, n411 = d.nir_up||0;
+      const r412 = d.red_down||0, n412 = d.nir_down||0;
+      const nd411 = (n411-r411)/((n411+r411)||0.001);
+      const nd412 = (n412-r412)/((n412+r412)||0.001);
+      mobData.ndvi = {
+        ndvi: d.ndvi || (nd411+nd412)/2,
+        nd411, nd412,
+        r411, n411, angle411: d.angle_up||0,
+        r412, n412, angle412: d.angle_down||0,
+        bat: d.battery||0
+      };
+    }
+
+    // Cập nhật giờ
+    document.getElementById('mob-update-time').textContent =
+      new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
+
+    // Tính cảnh báo
+    mobCalcAlerts();
+    mobRender();
+
+  } catch(e) {
+    console.error('Fetch error:', e);
+    document.getElementById('mob-offline').style.display = 'block';
+  }
+}
+
+// ── Tính cảnh báo ──
+function mobCalcAlerts() {
+  mobAlerts = [];
+  mobData.stations.forEach(s => {
+    if (!s || !s.hasData) return;
+    if (s.vwc < 15)           mobAlerts.push({icon:'🚨', title:`${s.name}: Hạn nặng`, sub:`VWC=${s.vwc}% — Tưới ngay!`});
+    else if (s.vwc < THRESH.vwc.min) mobAlerts.push({icon:'💧', title:`${s.name}: Cần tưới`, sub:`VWC=${s.vwc}%`});
+    if (s.ph > 0 && s.ph < 4.5)     mobAlerts.push({icon:'⚗️', title:`${s.name}: pH rất chua`, sub:`pH=${s.ph}`});
+    else if (s.ph > 0 && s.ph < THRESH.ph.min) mobAlerts.push({icon:'⚗️', title:`${s.name}: pH chua`, sub:`pH=${s.ph}`});
+    if (s.ec > 2.0)                  mobAlerts.push({icon:'⚡', title:`${s.name}: EC nguy hiểm`, sub:`EC=${s.ec} dS/m`});
+    if (s.temp > 38)                 mobAlerts.push({icon:'🌡️', title:`${s.name}: Đất quá nóng`, sub:`T=${s.temp}°C`});
+    if (s.bat > 0 && s.bat < 20)    mobAlerts.push({icon:'🔋', title:`${s.name}: Pin yếu`, sub:`Pin=${s.bat.toFixed(0)}%`});
+  });
+
+  // Badge
+  const badge = document.getElementById('mob-alert-badge');
+  if (mobAlerts.length > 0) {
+    badge.style.display = 'inline';
+    badge.textContent = mobAlerts.length;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ── Helpers ──
+function valCls(val, min, max) {
+  if (!val && val !== 0) return 'mob-val-norm';
+  return (val < min || val > max) ? 'mob-val-warn' : 'mob-val-ok';
+}
+function batColor(pct) {
+  return pct < 20 ? '#dc3545' : pct < 50 ? '#fd7e14' : '#28a745';
+}
+function fmt(v, dec=1) {
+  if (!v && v !== 0) return '—';
+  return parseFloat(v).toFixed(dec);
+}
+
+// ── Tính N, P, K, CEC ──
+function calcNPK(ph, ec, temp, ndvi=0.3) {
+  const N   = Math.max(0, +(2.5*ph + 0.8*temp + 1.2*ec + 15*ndvi - 30).toFixed(1));
+  const P   = Math.max(0, +(1.5*ph + 8*ndvi - 10).toFixed(1));
+  const K   = Math.max(0, +(0.3*ec + 0.4*ph + 6*ndvi).toFixed(2));
+  const CEC = Math.max(0, +(0.8*ph + 1.5*ec + 4).toFixed(1));
+  return { N, P, K, CEC };
+}
+
+// ── Render ──
+function mobRender() {
+  if (mobTab === 'stations') mobRenderStations();
+  else if (mobTab === 'ndvi') mobRenderNDVI();
+  else mobRenderAlerts();
+}
+
+function mobRenderStations() {
+  const content = document.getElementById('mob-content');
+  if (!mobData.stations.length) {
+    content.innerHTML = `<div class="mob-loading">Chưa có dữ liệu</div>`;
+    return;
+  }
+
+  // Lấy NDVI cho tính toán
+  const ndviVal = mobData.ndvi ? mobData.ndvi.ndvi : 0.3;
+
+  let html = '';
+  mobData.stations.forEach((s, idx) => {
+    if (!s) {
+      html += `<div class="mob-station-card">
+        <div class="mob-card-header">
+          <div class="mob-card-name"><span class="mob-dot mob-dot-off"></span>Trạm ${idx+1}</div>
+          <span class="mob-badge" style="background:#f8f9fa;color:#6c757d;">OFFLINE</span>
+        </div>
+        <div style="padding:14px;text-align:center;color:#adb5bd;font-size:13px;">Chưa có tín hiệu</div>
+      </div>`;
+      return;
+    }
+
+    const alerts = mobAlerts.filter(a => a.title.includes(s.name));
+    const dotCls = !s.hasData ? 'mob-dot-off' : alerts.length ? 'mob-dot-alr' : 'mob-dot-on';
+    const bat    = parseFloat(s.bat)||0;
+    const batCol = batColor(bat);
+    const calc   = calcNPK(s.ph, s.ec, s.temp, ndviVal);
+
+    let badgeHtml = s.hasData
+      ? (alerts.length
+          ? `<span class="mob-badge" style="background:#fff3cd;color:#856404;">⚠ CẢNH BÁO</span>`
+          : `<span class="mob-badge" style="background:#d4edda;color:#155724;">ONLINE</span>`)
+      : `<span class="mob-badge" style="background:#f8f9fa;color:#6c757d;">OFFLINE</span>`;
+
+    html += `
+      <div class="mob-station-card">
+        <div class="mob-card-header">
+          <div class="mob-card-name">
+            <span class="mob-dot ${dotCls}"></span>${s.name}
+          </div>
+          ${badgeHtml}
+        </div>
+
+        <!-- Row 1: 4 chỉ số cảm biến chính -->
+        <div class="mob-data-grid">
+          <div class="mob-data-cell">
+            <div class="mob-data-label" style="color:#212529">pH</div>
+            <div class="mob-data-val ${valCls(s.ph, THRESH.ph.min, THRESH.ph.max)}">${fmt(s.ph,1)}</div>
+          </div>
+          <div class="mob-data-cell">
+            <div class="mob-data-label" style="color:#212529">VWC</div>
+            <div class="mob-data-val ${valCls(s.vwc, THRESH.vwc.min, THRESH.vwc.max)}">${fmt(s.vwc,1)}</div>
+            <div class="mob-data-unit">%</div>
+          </div>
+          <div class="mob-data-cell">
+            <div class="mob-data-label" style="color:#212529">EC</div>
+            <div class="mob-data-val ${valCls(s.ec, THRESH.ec.min, THRESH.ec.max)}">${fmt(s.ec,2)}</div>
+            <div class="mob-data-unit">dS/m</div>
+          </div>
+          <div class="mob-data-cell">
+            <div class="mob-data-label" style="color:#212529">T</div>
+            <div class="mob-data-val ${valCls(s.temp, THRESH.temp.min, THRESH.temp.max)}">${fmt(s.temp,1)}</div>
+            <div class="mob-data-unit">°C</div>
+          </div>
+        </div>
+
+        <!-- Row 2: N P K CEC tính toán -->
+        <div class="mob-data-grid-2">
+          <div class="mob-data-cell-sm">
+            <div class="mob-data-label-sm">N</div>
+            <div class="mob-data-val-sm">${fmt(calc.N,1)}</div>
+            <div class="mob-data-unit-sm">mg/kg</div>
+          </div>
+          <div class="mob-data-cell-sm">
+            <div class="mob-data-label-sm">P</div>
+            <div class="mob-data-val-sm">${fmt(calc.P,1)}</div>
+            <div class="mob-data-unit-sm">mg/kg</div>
+          </div>
+          <div class="mob-data-cell-sm">
+            <div class="mob-data-label-sm">K</div>
+            <div class="mob-data-val-sm">${fmt(calc.K,2)}</div>
+            <div class="mob-data-unit-sm">meq</div>
+          </div>
+          <div class="mob-data-cell-sm">
+            <div class="mob-data-label-sm">CEC</div>
+            <div class="mob-data-val-sm">${fmt(calc.CEC,1)}</div>
+            <div class="mob-data-unit-sm">meq</div>
+          </div>
+        </div>
+
+        <!-- Footer: pin + cảnh báo -->
+        <div class="mob-card-footer">
+          <div style="display:flex;align-items:center;gap:5px;">
+            <div class="mob-bat-shell">
+              <div class="mob-bat-inner" style="width:${Math.min(100,bat)}%;background:${batCol};"></div>
+            </div>
+            <span style="font-size:11px;font-weight:500;color:${batCol};">${bat.toFixed(0)}%</span>
+            <span style="font-size:11px;color:#adb5bd;">
+              ${s.charging===1?'⚡':s.charging===2?'✅':'🔋'}
+            </span>
+          </div>
+          ${alerts.length
+            ? `<div class="mob-alert-tag"><i class="fas fa-exclamation-triangle"></i>${alerts[0].sub}</div>`
+            : `<div style="font-size:10px;color:#ced4da;"><i class="fas fa-map-marker-alt"></i> ${fmt(s.lat,4)}, ${fmt(s.lng,4)}</div>`
+          }
+        </div>
+      </div>`;
+  });
+
+  content.innerHTML = html;
+}
+
+function mobRenderNDVI() {
+  const content = document.getElementById('mob-content');
+  const nd = mobData.ndvi;
+
+  if (!nd) {
+    content.innerHTML = `<div class="mob-loading">
+      <i class="fas fa-leaf fa-2x mb-3 d-block" style="color:#adb5bd"></i>
+      Chưa có dữ liệu NDVI
+    </div>`;
+    return;
+  }
+
+  const avg = nd.ndvi;
+  const pct = Math.max(0, Math.min(100, ((avg + 1) / 2) * 100));
+  let health, healthColor, healthBg;
+  if      (avg < 0.2) { health='Đất trống / Cây yếu'; healthColor='#dc3545'; healthBg='#fde8e8'; }
+  else if (avg < 0.4) { health='Phát triển trung bình'; healthColor='#fd7e14'; healthBg='#fff3e0'; }
+  else if (avg < 0.6) { health='Phát triển khá';       healthColor='#5a8c1a'; healthBg='#f0f7e0'; }
+  else                { health='Phát triển tốt ✓';     healthColor='#2d6a0f'; healthBg='#e8f5e0'; }
+
+  content.innerHTML = `
+    <div class="mob-ndvi-card">
+      <div class="mob-ndvi-header">
+        <div>
+          <div style="font-size:12px;opacity:.8;margin-bottom:2px;">Node NDVI · Trạm 7</div>
+          <div style="font-size:22px;font-weight:700;">${fmt(avg,4)}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:11px;opacity:.8;">Pin node</div>
+          <div style="font-size:16px;font-weight:600;">${fmt(nd.bat,0)}%</div>
+          <div style="font-size:11px;opacity:.7;margin-top:4px;">● Real-time</div>
+        </div>
+      </div>
+
+      <!-- Gauge -->
+      <div style="padding:12px 14px 4px;">
+        <div class="mob-ndvi-gauge">
+          <div class="mob-ndvi-needle" style="left:${pct}%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:#adb5bd;margin-top:3px;">
+          <span>-1</span><span>0</span><span>0.3</span><span>0.6</span><span>1.0</span>
+        </div>
+      </div>
+
+      <!-- Health badge -->
+      <div style="margin:8px 14px;padding:8px 12px;border-radius:8px;
+        background:${healthBg};color:${healthColor};font-size:13px;font-weight:500;text-align:center;">
+        ${health}
+      </div>
+
+      <!-- S2-411 & S2-412 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#f5f5f5;margin-top:4px;">
+        <div style="background:white;padding:10px 14px;">
+          <div style="font-size:11px;font-weight:600;color:#dc3545;margin-bottom:6px;">S2-411 (Lên)</div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+            <span style="color:#adb5bd;">RED</span>
+            <span style="font-weight:600;">${fmt(nd.r411,4)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+            <span style="color:#adb5bd;">NIR</span>
+            <span style="font-weight:600;color:#534AB7;">${fmt(nd.n411,4)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+            <span style="color:#adb5bd;">NDVI</span>
+            <span style="font-weight:600;color:#2d6a0f;">${fmt(nd.nd411,4)}</span>
+          </div>
+          <div style="font-size:10px;color:#adb5bd;">Góc: ${fmt(nd.angle411,1)}°</div>
+        </div>
+        <div style="background:white;padding:10px 14px;">
+          <div style="font-size:11px;font-weight:600;color:#0d6efd;margin-bottom:6px;">S2-412 (Xuống)</div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+            <span style="color:#adb5bd;">RED</span>
+            <span style="font-weight:600;">${fmt(nd.r412,4)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+            <span style="color:#adb5bd;">NIR</span>
+            <span style="font-weight:600;color:#534AB7;">${fmt(nd.n412,4)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+            <span style="color:#adb5bd;">NDVI</span>
+            <span style="font-weight:600;color:#2d6a0f;">${fmt(nd.nd412,4)}</span>
+          </div>
+          <div style="font-size:10px;color:#adb5bd;">Góc: ${fmt(nd.angle412,1)}°</div>
+        </div>
+      </div>
+
+      <!-- Thang đánh giá -->
+      <div style="padding:10px 14px;">
+        <div style="font-size:11px;font-weight:600;color:#495057;margin-bottom:8px;">Thang đánh giá NDVI</div>
+        ${[
+          ['#dc3545','Dưới 0.2','Đất trống / Cây chết'],
+          ['#fd7e14','0.2 – 0.4','Cây yếu, căng thẳng'],
+          ['#8bc34a','0.4 – 0.6','Phát triển trung bình'],
+          ['#2d6a0f','Trên 0.6','Phát triển tốt ✓'],
+        ].map(([color, range, label]) => `
+          <div style="display:flex;align-items:center;gap:8px;padding:4px 0;
+            border-bottom:1px solid #f5f5f5;font-size:11px;">
+            <span style="width:10px;height:10px;border-radius:2px;
+              background:${color};flex-shrink:0;display:inline-block;"></span>
+            <span style="color:#6c757d;min-width:60px;">${range}</span>
+            <span style="color:${color};font-weight:500;">${label}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function mobRenderAlerts() {
+  const content = document.getElementById('mob-content');
+
+  if (!mobAlerts.length) {
+    content.innerHTML = `
+      <div class="mob-alert-card">
+        <div style="padding:30px;text-align:center;color:#adb5bd;">
+          <i class="fas fa-check-circle fa-3x mb-3 d-block" style="color:#28a745;"></i>
+          <div style="font-size:14px;font-weight:500;color:#212529;">Tất cả bình thường</div>
+          <div style="font-size:12px;margin-top:4px;">Không có cảnh báo nào</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const urgentColor = { '🚨':'#fde8e8', '💧':'#e3f2fd', '⚗️':'#fff3e0',
+    '⚡':'#f3e5f5', '🌡️':'#fff3e0', '🔋':'#fde8e8' };
+
+  content.innerHTML = `
+    <div style="font-size:12px;color:#6c757d;margin-bottom:8px;padding:0 2px;">
+      ${mobAlerts.length} cảnh báo cần xử lý
+    </div>
+    <div class="mob-alert-card">
+      ${mobAlerts.map(a => `
+        <div class="mob-alert-item" style="background:${urgentColor[a.icon]||'white'}">
+          <span class="mob-alert-icon">${a.icon}</span>
+          <div>
+            <div class="mob-alert-title">${a.title}</div>
+            <div class="mob-alert-sub">${a.sub}</div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+// ── Tab switching ──
+function mobShowTab(tab) {
+  mobTab = tab;
+  ['stations','ndvi','alerts'].forEach(t => {
+    document.getElementById(`mob-nav-${t}`)?.classList.toggle('active', t === tab);
+  });
+  mobRender();
+}
+
+// ── Refresh ──
+async function mobRefresh() {
+  const icon = document.getElementById('mob-refresh-icon');
+  if (icon) icon.classList.add('fa-spin');
+  await mobFetch();
+  if (icon) icon.classList.remove('fa-spin');
+}
+
+// ── Online/Offline ──
+window.addEventListener('offline', () => {
+  document.getElementById('mob-offline').style.display = 'block';
+});
+window.addEventListener('online', () => {
+  document.getElementById('mob-offline').style.display = 'none';
+  mobFetch();
+});
+
+// ── Service Worker ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(console.warn);
+}
+
+// ── Khởi động ──
+mobFetch();
+setInterval(mobFetch, 60000); // Auto refresh mỗi 60 giây
+</script>
+</body>
+</html>
