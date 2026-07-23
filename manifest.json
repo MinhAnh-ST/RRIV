@@ -1,6 +1,6 @@
 {
-  "name": "MIA - Quan trắc nông nghiệp",
-  "short_name": "MIA",
+  "name": "RRIV - Quan trắc nông nghiệp",
+  "short_name": "RRIV",
   "start_url": "/RRIV/mobile.html",
   "scope": "/RRIV/mobile.html",
   "display": "standalone",
