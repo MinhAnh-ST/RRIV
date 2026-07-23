@@ -1,5 +1,5 @@
 
-const CACHE = 'mia-v2';
+const CACHE = 'V2.4';
 const ASSETS = [
   '/RRIV/mobile.html',
   '/RRIV/icon_mia_256.png',
