@@ -274,7 +274,7 @@ async function mobFetch() {
       const nd411 = (n411-r411)/((n411+r411)||0.001);
       const nd412 = (n412-r412)/((n412+r412)||0.001);
       mobData.ndvi = {
-        ndvi: d.ndvi || (nd411+nd412)/2,
+        ndvi: (nd411+nd412)/2,
         nd411, nd412,
         r411, n411, angle411: d.angle_up||0,
         r412, n412, angle412: d.angle_down||0,
@@ -671,8 +671,7 @@ function mobRenderNDVI() {
             <span style="font-weight:600;color:#534AB7;">${fmt(nd.n411,4)}</span>
           </div>
           <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
-            <span style="color:#adb5bd;">NDVI</span>
-            <span style="font-weight:600;color:#2d6a0f;">${fmt(nd.nd411,4)}</span>
+            
           </div>
           <div style="font-size:10px;color:#adb5bd;">Góc: ${fmt(nd.angle411,1)}°</div>
         </div>
