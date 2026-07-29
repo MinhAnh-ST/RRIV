@@ -376,6 +376,12 @@ function mobRenderStations() {
     const dotCls = !s.hasData ? 'mob-dot-off' : alerts.length ? 'mob-dot-alr' : 'mob-dot-on';
     const bat    = parseFloat(s.bat)||0;
     const batCol = batColor(bat);
+    const m = (() => {
+      try {
+        const cache = JSON.parse(localStorage.getItem('rriv_manual_latest') || '{}');
+        return cache[s.name] || cache['all'] || {};
+      } catch(e) { return {}; }
+    })();
     const calc   = calcNPK(s.ph, s.ec, s.temp, ndviVal);
 
     let badgeHtml = s.hasData
