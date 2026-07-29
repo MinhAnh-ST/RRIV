@@ -227,7 +227,7 @@
 // ── Config ──
 const FIREBASE_URL  = 'https://rrvi-dca60-default-rtdb.asia-southeast1.firebasedatabase.app';
 const FIREBASE_AUTH = 'yiO8BmmDkVjx9dzfn6fqoKJH3NGvotWPZc9kgEhe';
-
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzx6Aop5VUzok-IcgaVOWB84gN7xOgOK8OjLr8g_p8xQIIgJAJsKA2EGhSehkHaa1xiWA/exec';
 const THRESH = {
   ph:   { min: 5.5,  max: 8.5  },
   vwc:  { min: 20,   max: 80   },
@@ -335,11 +335,84 @@ function fmt(v, dec=1) {
 
 // ── Tính N, P, K, CEC ──
 function calcNPK(ph, ec, temp, ndvi=0.3) {
+  try {
+    const saved = localStorage.getItem('rriv_coefficients');
+    const c = saved ? JSON.parse(saved) : null;
+    if (c && c.N && c.P && c.K && c.CEC) {
+      const N   = Math.max(0, +(c.N.a*ph + c.N.b*temp + c.N.c*ec + c.N.d*ndvi + c.N.e*0 + c.N.f).toFixed(1));
+      const P   = Math.max(0, +(c.P.a*ph + c.P.b*0 + c.P.c*ndvi + c.P.e).toFixed(1));
+      const K   = Math.max(0, +(c.K.a*ec + c.K.b*ph + c.K.c*ndvi + c.K.d).toFixed(1));
+      const CEC = Math.max(0, +(c.CEC.a*ph + c.CEC.b*ec + c.CEC.c*20 + c.CEC.d*2 + c.CEC.e).toFixed(1));
+      return { N, P, K, CEC };
+    }
+  } catch(e) {}
+  // Fallback hệ số mặc định
   const N   = Math.max(0, +(2.5*ph + 0.8*temp + 1.2*ec + 15*ndvi - 30).toFixed(1));
   const P   = Math.max(0, +(1.5*ph + 8*ndvi - 10).toFixed(1));
-  const K   = Math.max(0, +(0.3*ec + 0.4*ph + 6*ndvi).toFixed(2));
+  const K   = Math.max(0, +(0.3*ec + 0.4*ph + 6*ndvi).toFixed(1));
   const CEC = Math.max(0, +(0.8*ph + 1.5*ec + 4).toFixed(1));
   return { N, P, K, CEC };
+}
+
+async function mobSyncFromSheets() {
+  try {
+    // 1. Lấy kết quả tính toán N/P/K/CEC từ Sheets
+    const resCalc  = await fetch(`${SHEETS_URL}?action=getCalc`);
+    const calcRows = await resCalc.json();
+    if (calcRows && calcRows.length > 0) {
+      const calcCache = {};
+      calcRows.forEach(r => {
+        const tram = r['Tram'] || r['tram'];
+        if (tram) {
+          calcCache[tram] = {
+            N:   parseFloat(r['N_tinhtoan'])   || 0,
+            P:   parseFloat(r['P_tinhtoan'])   || 0,
+            K:   parseFloat(r['K_tinhtoan'])   || 0,
+            CEC: parseFloat(r['CEC_tinhtoan']) || 0,
+          };
+        }
+      });
+      localStorage.setItem('rriv_calc_latest', JSON.stringify(calcCache));
+    }
+
+    // 2. Lấy manual data mới nhất
+    const resManual  = await fetch(`${SHEETS_URL}?action=getManual&days=30`);
+    const manualRows = await resManual.json();
+    if (manualRows && manualRows.length > 0) {
+      const latest = manualRows[manualRows.length - 1];
+      const values = {};
+      ['N','P','K','Ca','Mg','humus','SPAD','Texture','CEC','Cu','Zn','Mn'].forEach(k => {
+        if (latest[k] !== undefined && latest[k] !== '') values[k] = parseFloat(latest[k]);
+      });
+      const manualCache = {};
+      ['Trạm 1','Trạm 2','Trạm 3','Trạm 4','Trạm 5','Trạm 6'].forEach(t => {
+        manualCache[t] = values;
+      });
+      localStorage.setItem('rriv_manual_latest', JSON.stringify(manualCache));
+    }
+
+    // 3. Lấy hệ số hồi quy
+    const resCoeff  = await fetch(`${SHEETS_URL}?action=getCoeff`);
+    const coeffData = await resCoeff.json();
+    if (coeffData && coeffData.N_a !== undefined) {
+      const c = {
+        N:   { a:coeffData.N_a,   b:coeffData.N_b,   c:coeffData.N_c,
+                d:coeffData.N_d,   e:coeffData.N_e,   f:coeffData.N_f   },
+        P:   { a:coeffData.P_a,   b:coeffData.P_b,   c:coeffData.P_c,
+                d:coeffData.P_d,   e:coeffData.P_e                       },
+        K:   { a:coeffData.K_a,   b:coeffData.K_b,
+                c:coeffData.K_c,   d:coeffData.K_d                       },
+        CEC: { a:coeffData.CEC_a, b:coeffData.CEC_b, c:coeffData.CEC_c,
+                d:coeffData.CEC_d, e:coeffData.CEC_e                     }
+      };
+      localStorage.setItem('rriv_coefficients', JSON.stringify(c));
+    }
+
+    mobRender();
+    console.log('[Mobile] Sync Sheets hoàn tất');
+  } catch(e) {
+    console.warn('[Mobile] Sync thất bại:', e.message);
+  }
 }
 
 // ── Render ──
@@ -382,7 +455,12 @@ function mobRenderStations() {
         return cache[s.name] || cache['all'] || {};
       } catch(e) { return {}; }
     })();
-    const calc   = calcNPK(s.ph, s.ec, s.temp, ndviVal);
+    // Ưu tiên lấy kết quả từ Sheets, fallback tính lại
+    const calcCache = (() => {
+      try { return JSON.parse(localStorage.getItem('rriv_calc_latest') || '{}'); }
+      catch(e) { return {}; }
+    })();
+    const calc = calcCache[s.name] || calcNPK(s.ph, s.ec, s.temp, ndviVal);
 
     let badgeHtml = s.hasData
       ? (alerts.length
@@ -710,7 +788,9 @@ if ('serviceWorker' in navigator) {
 
 // ── Khởi động ──
 mobFetch();
-setInterval(mobFetch, 60000); // Auto refresh mỗi 60 giây
+mobSyncFromSheets();
+setInterval(mobFetch, 60000);
+setInterval(mobSyncFromSheets, (10*300000)); // Sync Sheets mỗi 5 phút
 </script>
 </body>
 </html>
