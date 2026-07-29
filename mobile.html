@@ -460,7 +460,7 @@ function mobRenderStations() {
       try { return JSON.parse(localStorage.getItem('rriv_calc_latest') || '{}'); }
       catch(e) { return {}; }
     })();
-    const calc = calcCache[s.name] || calcNPK(s.ph, s.ec, s.temp, ndviVal);
+    const calc = calcCache[s.name] || { N:'—', P:'—', K:'—', CEC:'—' };
 
     let badgeHtml = s.hasData
       ? (alerts.length
