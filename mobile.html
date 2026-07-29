@@ -134,12 +134,12 @@
     .mob-ndvi-label { font-size: 10px; color: #adb5bd; margin-bottom: 4px; }
     .mob-ndvi-val { font-size: 18px; font-weight: 700; }
 
-    /* Gauge NDVI */
+    /* Gauge NDVI 
     .mob-ndvi-gauge {
       height: 8px; border-radius: 4px; margin: 8px 14px;
       background: linear-gradient(to right, #dc3545 0%, #fd7e14 25%, #8bc34a 55%, #2d6a0f 100%);
       position: relative;
-    }
+    }*/
     .mob-ndvi-needle {
       position: absolute; top: -4px; width: 3px; height: 16px;
       background: #333; border-radius: 2px; transform: translateX(-50%);
@@ -650,14 +650,7 @@ function mobRenderNDVI() {
       </div>
 
       <!-- Gauge -->
-      <div style="padding:12px 14px 4px;">
-        <div class="mob-ndvi-gauge">
-          <div class="mob-ndvi-needle" style="left:${pct}%"></div>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:9px;color:#adb5bd;margin-top:3px;">
-          <span>-1</span><span>0</span><span>0.3</span><span>0.6</span><span>1.0</span>
-        </div>
-      </div>
+     
 
       <!-- Health badge -->
       <div style="margin:8px 14px;padding:8px 12px;border-radius:8px;
@@ -694,8 +687,7 @@ function mobRenderNDVI() {
             <span style="font-weight:600;color:#534AB7;">${fmt(nd.n412,4)}</span>
           </div>
           <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
-            <span style="color:#adb5bd;">NDVI</span>
-            <span style="font-weight:600;color:#2d6a0f;">${fmt(nd.nd412,4)}</span>
+            
           </div>
           <div style="font-size:10px;color:#adb5bd;">Góc: ${fmt(nd.angle412,1)}°</div>
         </div>
