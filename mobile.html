@@ -816,18 +816,23 @@ function mobRenderCalendar() {
     'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
 
   // ── Lấy events của ngày (kể cả repeat) ──
-  function getEventsForDate(dateStr) {
+ function getEventsForDate(dateStr) {
     const d = new Date(dateStr);
     d.setHours(0,0,0,0);
     const result = [];
     fcEvents.forEach(e => {
+      // Convert về local date string thay vì UTC
       const evDate = new Date(e.date);
-      evDate.setHours(0,0,0,0);
-      const evDateStr = evDate.toISOString().slice(0,10);
+      const evDateStr = [
+        evDate.getFullYear(),
+        String(evDate.getMonth()+1).padStart(2,'0'),
+        String(evDate.getDate()).padStart(2,'0')
+      ].join('-');
+
       if (e.repeat && e.repeat > 0) {
-        // Check endDate
         if (e.endDate && d > new Date(e.endDate)) return;
-        const diffDays = Math.round((d - evDate) / 86400000);
+        const evDateLocal = new Date(evDateStr);
+        const diffDays = Math.round((d - evDateLocal) / 86400000);
         if (diffDays >= 0 && diffDays % e.repeat === 0) result.push(e);
       } else {
         if (evDateStr === dateStr) result.push(e);
