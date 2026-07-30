@@ -175,6 +175,50 @@
 
     /* Scrollbar ẩn trên mobile */
     ::-webkit-scrollbar { display: none; }
+    /* Calendar mobile */
+    .mob-cal-wrap { background:white; border-radius:14px; border:1px solid #e9ecef;
+      overflow:hidden; margin-bottom:10px; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
+    .mob-cal-header { padding:10px 14px; display:flex; align-items:center;
+      justify-content:space-between; border-bottom:1px solid #f5f5f5; }
+    .mob-cal-title { font-size:14px; font-weight:600; }
+    .mob-cal-nav { width:30px; height:30px; border-radius:50%;
+      background:#f8f9fa; border:none; cursor:pointer; font-size:14px;
+      display:flex; align-items:center; justify-content:center; }
+    .mob-cal-nav:hover { background:#e9ecef; }
+    .mob-cal-grid { display:grid; grid-template-columns:repeat(7,1fr); }
+    .mob-cal-head { text-align:center; font-size:10px; font-weight:600;
+      color:#6c757d; padding:6px 2px; background:#f8f9fa; }
+    .mob-cal-cell { min-height:52px; padding:2px; border-right:1px solid #f5f5f5;
+      border-bottom:1px solid #f5f5f5; }
+    .mob-cal-cell:nth-child(7n) { border-right:none; }
+    .mob-cal-cell.mob-today { background:#EAF3DE; }
+    .mob-cal-cell.mob-other .mob-cal-dn { color:#dee2e6; }
+    .mob-cal-dn { font-size:10px; color:#adb5bd; margin-bottom:1px; padding:1px 2px; }
+    .mob-cal-cell.mob-today .mob-cal-dn { color:#2d6a0f; font-weight:600; }
+    .mob-cal-ev { font-size:9px; padding:1px 3px; margin-bottom:1px;
+      border-radius:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      border-left:2px solid transparent; display:block; }
+    .mob-ev-w { background:#E6F1FB; color:#0C447C; border-left-color:#185FA5; }
+    .mob-ev-f { background:#EAF3DE; color:#27500A; border-left-color:#3B6D11; }
+    .mob-ev-s { background:#FAEEDA; color:#633806; border-left-color:#854F0B; }
+    .mob-ev-m { background:#EEEDFE; color:#3C3489; border-left-color:#534AB7; }
+    .mob-ev-h { background:#FCEBEB; color:#791F1F; border-left-color:#A32D2D; }
+    .mob-ev-r { background:#F1EFE8; color:#444441; border-left-color:#5F5E5A; }
+    .mob-cal-legend { display:flex; gap:8px; flex-wrap:wrap;
+      padding:8px 14px; border-top:1px solid #f5f5f5; }
+    .mob-cal-leg { display:flex; align-items:center; gap:3px; font-size:10px; color:#6c757d; }
+    .mob-cal-leg-dot { width:8px; height:6px; border-radius:1px; }
+    .mob-cal-summary { background:white; border-radius:14px; border:1px solid #e9ecef;
+      padding:10px 14px; margin-bottom:10px; }
+    .mob-cal-sum-title { font-size:12px; font-weight:600; margin-bottom:8px;
+      display:flex; align-items:center; gap:6px; }
+    .mob-cal-sum-item { display:flex; align-items:flex-start; gap:8px;
+      padding:6px 0; border-bottom:1px solid #f5f5f5; }
+    .mob-cal-sum-item:last-child { border-bottom:none; }
+    .mob-cal-sum-date { font-size:10px; color:#adb5bd; min-width:36px; }
+    .mob-cal-sum-badge { font-size:10px; padding:1px 6px; border-radius:8px; white-space:nowrap; }
+    .mob-cal-sum-text { font-size:12px; font-weight:500; }
+    .mob-cal-sum-lot { font-size:10px; color:#6c757d; margin-top:1px; }
   </style>
 </head>
 <body>
@@ -215,6 +259,10 @@
     <i class="fas fa-leaf"></i>
     <span>NDVI</span>
   </button>
+  <button class="mob-nav-item" id="mob-nav-calendar" onclick="mobShowTab('calendar')">
+    <i class="fas fa-calendar-days"></i>
+    <span>Lịch</span>
+  </button>
   <button class="mob-nav-item" id="mob-nav-alerts" onclick="mobShowTab('alerts')">
     <i class="fas fa-bell"></i>
     <span>Cảnh báo</span>
@@ -227,7 +275,8 @@
 // ── Config ──
 const FIREBASE_URL  = 'https://rrvi-dca60-default-rtdb.asia-southeast1.firebasedatabase.app';
 const FIREBASE_AUTH = 'yiO8BmmDkVjx9dzfn6fqoKJH3NGvotWPZc9kgEhe';
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzg_gL_TP6E2U63v9k-_mzrpC6CEJsU6J7zXFqFzmYTKZd31REXhcrqTj3ZjLweDTODLg/exec';
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzZFWoR7wCeIOJMVrHtlSTSKNiDE83tZVGDHVbO8WpdmIyqQRGyhbSN1GemZ9S_0Em3Iw/exec';
+
 const THRESH = {
   ph:   { min: 5.5,  max: 8.5  },
   vwc:  { min: 20,   max: 80   },
@@ -408,6 +457,15 @@ async function mobSyncFromSheets() {
       localStorage.setItem('rriv_coefficients', JSON.stringify(c));
     }
 
+    // 4. Lấy lịch canh tác
+    const resCal  = await fetch(`${SHEETS_URL}?action=getFarmCalendar`);
+    const calData = await resCal.json();
+    if (calData && calData.lots !== undefined) {
+      localStorage.setItem('rriv_fc_lots',   JSON.stringify(calData.lots));
+      localStorage.setItem('rriv_fc_events', JSON.stringify(calData.events));
+      console.log('[Mobile] Farm calendar synced:', calData.lots.length, 'lô,', calData.events.length, 'sự kiện');
+    }
+
     mobRender();
     console.log('[Mobile] Sync Sheets hoàn tất');
   } catch(e) {
@@ -419,6 +477,7 @@ async function mobSyncFromSheets() {
 function mobRender() {
   if (mobTab === 'stations') mobRenderStations();
   else if (mobTab === 'ndvi') mobRenderNDVI();
+   else if (mobTab === 'calendar') mobRenderCalendar();
   else mobRenderAlerts();
 }
 
@@ -502,7 +561,7 @@ function mobRenderStations() {
 
         <!-- Row 2: Tính toán hồi quy -->
         <div style="background:#fffdf0;border-top:1px solid #f0f0f0;">
-          <div style="padding:3px 8px;font-size:10px;color:#B8860B;font-weight:500;">🔬 Tính toán</div>
+          
           <div class="mob-data-grid-2">
             <div class="mob-data-cell-sm">
               <div class="mob-data-label-sm">N</div>
@@ -529,28 +588,9 @@ function mobRenderStations() {
 
         <!-- Row 3: Thực tế nhập tay -->
         <div style="background:#f8f7ff;border-top:1px dashed #dee2e6;">
-          <div style="padding:3px 8px;font-size:10px;color:#534AB7;font-weight:500;">📋 Thực tế (nhập tay)</div>
+        
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#f5f5f5;">
-            <div class="mob-data-cell-sm" style="background:#f8f7ff;">
-              <div class="mob-data-label-sm" style="color:#534AB7">N</div>
-              <div style="font-size:12px;font-weight:700;color:${m.N?'#534AB7':'#ced4da'}">${m.N?fmt(m.N,1):'—'}</div>
-              <div class="mob-data-unit-sm">mg/kg</div>
-            </div>
-            <div class="mob-data-cell-sm" style="background:#f8f7ff;">
-              <div class="mob-data-label-sm" style="color:#534AB7">P</div>
-              <div style="font-size:12px;font-weight:700;color:${m.P?'#534AB7':'#ced4da'}">${m.P?fmt(m.P,1):'—'}</div>
-              <div class="mob-data-unit-sm">mg/kg</div>
-            </div>
-            <div class="mob-data-cell-sm" style="background:#f8f7ff;">
-              <div class="mob-data-label-sm" style="color:#534AB7">K</div>
-              <div style="font-size:12px;font-weight:700;color:${m.K?'#534AB7':'#ced4da'}">${m.K?fmt(m.K,1):'—'}</div>
-              <div class="mob-data-unit-sm">meq</div>
-            </div>
-            <div class="mob-data-cell-sm" style="background:#f8f7ff;">
-              <div class="mob-data-label-sm" style="color:#534AB7">CEC</div>
-              <div style="font-size:12px;font-weight:700;color:${m.CEC?'#534AB7':'#ced4da'}">${m.CEC?fmt(m.CEC,1):'—'}</div>
-              <div class="mob-data-unit-sm">meq</div>
-            </div>
+            
             <div class="mob-data-cell-sm" style="background:#f8f7ff;">
               <div class="mob-data-label-sm" style="color:#534AB7">SPAD</div>
               <div style="font-size:12px;font-weight:700;color:${m.SPAD?'#534AB7':'#ced4da'}">${m.SPAD?fmt(m.SPAD,1):'—'}</div>
@@ -746,10 +786,178 @@ function mobRenderAlerts() {
     </div>`;
 }
 
+// ── Calendar state ──
+let mobCalYear  = new Date().getFullYear();
+let mobCalMonth = new Date().getMonth();
+
+function mobRenderCalendar() {
+  const content = document.getElementById('mob-content');
+
+  // Đọc data từ localStorage (web đã lưu)
+  let fcLots   = [], fcEvents = [];
+  try {
+    fcLots   = JSON.parse(localStorage.getItem('rriv_fc_lots')   || '[]');
+    fcEvents = JSON.parse(localStorage.getItem('rriv_fc_events') || '[]');
+  } catch(e) {}
+
+  if (fcLots.length === 0 && fcEvents.length === 0) {
+    content.innerHTML = `
+      <div class="mob-cal-wrap">
+        <div style="padding:30px;text-align:center;color:#adb5bd;">
+          <i class="fas fa-calendar-days fa-3x mb-3 d-block" style="color:#dee2e6;"></i>
+          <div style="font-size:14px;font-weight:500;color:#212529;">Chưa có lịch canh tác</div>
+          <div style="font-size:12px;margin-top:4px;">Vào web để tạo lịch canh tác</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const monthNames = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+    'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+
+  // ── Lấy events của ngày (kể cả repeat) ──
+  function getEventsForDate(dateStr) {
+    const d = new Date(dateStr);
+    const result = [];
+    fcEvents.forEach(e => {
+      const evDate = new Date(e.date);
+      if (e.repeat && e.repeat > 0) {
+        const diffDays = Math.round((d - evDate) / 86400000);
+        if (diffDays >= 0 && diffDays % e.repeat === 0) result.push(e);
+      } else {
+        if (e.date === dateStr) result.push(e);
+      }
+    });
+    return result;
+  }
+
+  // ── Render calendar grid ──
+  const firstDay = new Date(mobCalYear, mobCalMonth, 1);
+  const lastDay  = new Date(mobCalYear, mobCalMonth+1, 0);
+  const today    = new Date(); today.setHours(0,0,0,0);
+
+  let startDow = firstDay.getDay();
+  startDow = startDow === 0 ? 6 : startDow - 1;
+
+  let gridHtml = '';
+
+  // Ô tháng trước
+  for (let i = startDow-1; i >= 0; i--) {
+    const d = new Date(firstDay); d.setDate(d.getDate()-i-1);
+    gridHtml += `<div class="mob-cal-cell mob-other"><div class="mob-cal-dn">${d.getDate()}</div></div>`;
+  }
+
+  // Ô tháng này
+  for (let day = 1; day <= lastDay.getDate(); day++) {
+    const d = new Date(mobCalYear, mobCalMonth, day);
+    const isToday = d.getTime() === today.getTime();
+    const dateStr = d.toISOString().slice(0,10);
+    const dayEvs  = getEventsForDate(dateStr);
+
+    const evHtml = dayEvs.slice(0,2).map(e =>
+      `<div class="mob-cal-ev mob-ev-${e.type}">${e.name.split('—')[0].trim()}</div>`
+    ).join('') + (dayEvs.length > 2
+      ? `<div style="font-size:9px;color:#adb5bd;padding:0 2px">+${dayEvs.length-2}</div>` : '');
+
+    gridHtml += `<div class="mob-cal-cell${isToday?' mob-today':''}">
+      <div class="mob-cal-dn">${day}</div>${evHtml}
+    </div>`;
+  }
+
+  // Ô tháng sau
+  const endDow  = lastDay.getDay();
+  const remaining = endDow === 0 ? 0 : 7 - endDow;
+  for (let i = 1; i <= remaining; i++) {
+    gridHtml += `<div class="mob-cal-cell mob-other"><div class="mob-cal-dn">${i}</div></div>`;
+  }
+
+  // ── Sự kiện sắp tới 5 ngày ──
+  const upcoming = [];
+  for (let i = 0; i <= 7; i++) {
+    const d = new Date(today); d.setDate(today.getDate()+i);
+    const dateStr = d.toISOString().slice(0,10);
+    const evs = getEventsForDate(dateStr);
+    evs.forEach(e => upcoming.push({ ...e, _date: dateStr, _d: d }));
+  }
+
+  const evColor = { w:'#E6F1FB', f:'#EAF3DE', s:'#FAEEDA', m:'#EEEDFE', h:'#FCEBEB', r:'#F1EFE8' };
+  const evTextColor = { w:'#0C447C', f:'#27500A', s:'#633806', m:'#3C3489', h:'#791F1F', r:'#444441' };
+  const evLabel = { w:'Tưới', f:'Bón phân', s:'Phun', m:'Lấy mẫu', h:'Thu hoạch', r:'Khác' };
+
+  const upcomingHtml = upcoming.length === 0
+    ? `<div style="font-size:12px;color:#adb5bd;text-align:center;padding:10px;">Không có sự kiện trong 7 ngày tới</div>`
+    : upcoming.map(e => {
+        const isToday2 = e._date === today.toISOString().slice(0,10);
+        const dateLabel = isToday2 ? 'Hôm nay' : e._d.toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'});
+        return `<div class="mob-cal-sum-item">
+          <div class="mob-cal-sum-date">${dateLabel}</div>
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:5px;">
+              <span class="mob-cal-sum-badge" style="background:${evColor[e.type]||'#f8f9fa'};color:${evTextColor[e.type]||'#212529'}">${evLabel[e.type]||'Khác'}</span>
+              <span class="mob-cal-sum-text">${e.name}</span>
+            </div>
+            ${e.lot ? `<div class="mob-cal-sum-lot"><i class="fas fa-map-marker-alt" style="font-size:9px"></i> ${e.lot}</div>` : ''}
+            ${e.note ? `<div style="font-size:10px;color:#adb5bd;margin-top:1px;">${e.note}</div>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+
+  // ── Thống kê tháng ──
+  const monthEvs = fcEvents.filter(e => {
+    const d = new Date(e.date);
+    return d.getFullYear()===mobCalYear && d.getMonth()===mobCalMonth;
+  });
+
+  content.innerHTML = `
+    <!-- Header điều hướng tháng -->
+    <div class="mob-cal-wrap">
+      <div class="mob-cal-header">
+        <button class="mob-cal-nav" onclick="mobCalChangeMonth(-1)">‹</button>
+        <div>
+          <div class="mob-cal-title">${monthNames[mobCalMonth]} ${mobCalYear}</div>
+          <div style="font-size:10px;color:#adb5bd;text-align:center;">${monthEvs.length} sự kiện · ${fcLots.length} lô</div>
+        </div>
+        <button class="mob-cal-nav" onclick="mobCalChangeMonth(1)">›</button>
+      </div>
+
+      <!-- Header ngày -->
+      <div class="mob-cal-grid">
+        ${['T2','T3','T4','T5','T6','T7','CN'].map(d =>
+          `<div class="mob-cal-head">${d}</div>`).join('')}
+        ${gridHtml}
+      </div>
+
+      <!-- Legend -->
+      <div class="mob-cal-legend">
+        <div class="mob-cal-leg"><div class="mob-cal-leg-dot" style="background:#E6F1FB;border:1px solid #185FA5"></div>Tưới</div>
+        <div class="mob-cal-leg"><div class="mob-cal-leg-dot" style="background:#EAF3DE;border:1px solid #3B6D11"></div>Bón phân</div>
+        <div class="mob-cal-leg"><div class="mob-cal-leg-dot" style="background:#FAEEDA;border:1px solid #854F0B"></div>Phun</div>
+        <div class="mob-cal-leg"><div class="mob-cal-leg-dot" style="background:#EEEDFE;border:1px solid #534AB7"></div>Lấy mẫu</div>
+        <div class="mob-cal-leg"><div class="mob-cal-leg-dot" style="background:#FCEBEB;border:1px solid #A32D2D"></div>Thu hoạch</div>
+      </div>
+    </div>
+
+    <!-- Sự kiện sắp tới -->
+    <div class="mob-cal-summary">
+      <div class="mob-cal-sum-title">
+        <i class="fas fa-bell" style="color:#854F0B;font-size:14px"></i>
+        Sắp tới 7 ngày
+      </div>
+      ${upcomingHtml}
+    </div>`;
+}
+
+function mobCalChangeMonth(delta) {
+  mobCalMonth += delta;
+  if (mobCalMonth > 11) { mobCalMonth = 0; mobCalYear++; }
+  if (mobCalMonth < 0)  { mobCalMonth = 11; mobCalYear--; }
+  mobRenderCalendar();
+}
+
 // ── Tab switching ──
 function mobShowTab(tab) {
   mobTab = tab;
-  ['stations','ndvi','alerts'].forEach(t => {
+  ['stations','ndvi','alerts','calendar'].forEach(t => {  // ← thêm 'calendar'
     document.getElementById(`mob-nav-${t}`)?.classList.toggle('active', t === tab);
   });
   mobRender();
