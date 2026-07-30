@@ -865,14 +865,10 @@ function mobRenderCalendar() {
     const dateStr = d.toISOString().slice(0,10);
     const dayEvs  = getEventsForDate(dateStr);
 
-   const evColors = { w:'#185FA5', f:'#3B6D11', s:'#854F0B', m:'#534AB7', h:'#A32D2D', r:'#5F5E5A' };
-    const evHtml = dayEvs.length === 0 ? '' : `
-      <div style="display:flex;flex-wrap:wrap;gap:2px;padding:1px 2px;">
-        ${dayEvs.slice(0,4).map(e =>
-          `<div title="${e.name}" style="width:6px;height:6px;border-radius:50%;background:${evColors[e.type]||'#aaa'};flex-shrink:0;"></div>`
-        ).join('')}
-        ${dayEvs.length > 4 ? `<div style="font-size:8px;color:#adb5bd;line-height:6px;">+${dayEvs.length-4}</div>` : ''}
-      </div>`;
+   const evHtml = dayEvs.slice(0,2).map(e =>
+      `<div class="mob-cal-ev mob-ev-${e.type}">${e.name.split('—')[0].trim()}</div>`
+    ).join('') + (dayEvs.length > 2
+      ? `<div style="font-size:9px;color:#adb5bd;padding:0 2px">+${dayEvs.length-2}</div>` : '');
 
     gridHtml += `<div class="mob-cal-cell${isToday?' mob-today':''}">
       <div class="mob-cal-dn">${day}</div>${evHtml}
