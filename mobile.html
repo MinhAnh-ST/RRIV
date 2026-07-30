@@ -818,14 +818,19 @@ function mobRenderCalendar() {
   // ── Lấy events của ngày (kể cả repeat) ──
   function getEventsForDate(dateStr) {
     const d = new Date(dateStr);
+    d.setHours(0,0,0,0);
     const result = [];
     fcEvents.forEach(e => {
+      // Convert date về dạng yyyy-mm-dd để so sánh
       const evDate = new Date(e.date);
+      evDate.setHours(0,0,0,0);
+      const evDateStr = evDate.toISOString().slice(0,10);
+
       if (e.repeat && e.repeat > 0) {
         const diffDays = Math.round((d - evDate) / 86400000);
         if (diffDays >= 0 && diffDays % e.repeat === 0) result.push(e);
       } else {
-        if (e.date === dateStr) result.push(e);
+        if (evDateStr === dateStr) result.push(e); // ← so sánh đúng định dạng
       }
     });
     return result;
