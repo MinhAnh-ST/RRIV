@@ -319,13 +319,14 @@ async function mobFetch() {
       let d = ndviNode;
       const keys = Object.keys(ndviNode);
       if (keys.length && keys[0].startsWith('-')) d = ndviNode[keys.sort().pop()];
-      const r411 = d.red_up||0, n411 = d.nir_up||0;
+            const r411 = d.red_up||0, n411 = d.nir_up||0;
       const r412 = d.red_down||0, n412 = d.nir_down||0;
-      const nd411 = (n411-r411)/((n411+r411)||0.001);
-      const nd412 = (n412-r412)/((n412+r412)||0.001);
+      const refRed = (r411 > 0.001) ? (r412 / r411) : 0;
+      const refNir = (n411 > 0.001) ? (n412 / n411) : 0;
+      const ndviCorrect = (refNir + refRed > 0) ? (refNir - refRed) / (refNir + refRed) : 0;
       mobData.ndvi = {
-        ndvi: (nd411+nd412)/2,
-        nd411, nd412,
+        ndvi: ndviCorrect,
+        nd411: ndviCorrect, nd412: ndviCorrect, 
         r411, n411, angle411: d.angle_up||0,
         r412, n412, angle412: d.angle_down||0,
         bat: d.battery||0
