@@ -323,19 +323,29 @@ async function mobFetch() {
       const r412 = d.red_down||0, n412 = d.nir_down||0;
       const refRed = (r411 > 0.001) ? (r412 / r411) : 0;
       const refNir = (n411 > 0.001) ? (n412 / n411) : 0;
-      let ndviCorrect = (refNir + refRed > 0) ? (refNir - refRed) / (refNir + refRed) : 0;
+            let ndviCorrect = (refNir + refRed > 0) ? (refNir - refRed) / (refNir + refRed) : 0;
 
-      // Khống chế: 6h00 - 17h30 không cho về 0, giữ giá trị tốt gần nhất; ngoài khung giờ đó cho phép 0
       const now = new Date();
       const hourNow = now.getHours() + now.getMinutes() / 60;
-      const isDayWindow = hourNow >= 6 && hourNow < 17.5; // 17.5 = 17h30
+      const isDayWindow = hourNow >= 6 && hourNow < 17.5;
+
+      const rawBeforeGuard = ndviCorrect;
+      const cachedBefore = localStorage.getItem('mob_ndvi_lastgood');
 
       if (isDayWindow && ndviCorrect === 0) {
-        const cached = parseFloat(localStorage.getItem('mob_ndvi_lastgood') || '');
+        const cached = parseFloat(cachedBefore || '');
         if (!isNaN(cached)) ndviCorrect = cached;
       } else if (ndviCorrect !== 0) {
         localStorage.setItem('mob_ndvi_lastgood', ndviCorrect);
       }
+
+      console.log('[NDVI GUARD]', {
+        gio: now.toLocaleTimeString('vi-VN'),
+        isDayWindow,
+        rawNhanDuoc: rawBeforeGuard,
+        cacheDangCoTruocDo: cachedBefore,
+        ketQuaCuoiCung: ndviCorrect
+      });
 
       mobData.ndvi = {
         ndvi: ndviCorrect,
