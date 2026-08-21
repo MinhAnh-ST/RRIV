@@ -339,7 +339,7 @@ async function mobFetch() {
         localStorage.setItem('mob_ndvi_lastgood', ndviCorrect);
       }
 
-      console.log('[NDVI GUARD]', {
+            console.log('[NDVI GUARD]', {
         gio: now.toLocaleTimeString('vi-VN'),
         isDayWindow,
         rawNhanDuoc: rawBeforeGuard,
@@ -347,11 +347,32 @@ async function mobFetch() {
         ketQuaCuoiCung: ndviCorrect
       });
 
+            window.__ndviDebug = `Giờ: ${now.toLocaleTimeString('vi-VN')} | Ngày: ${isDayWindow} | Raw: ${rawBeforeGuard} | Cache trước: ${cachedBefore} | Kết quả: ${ndviCorrect}`;
+
+      // Bảo vệ RED/NIR (chỉ ban ngày) và Góc (24/7) — giống hệt nguyên tắc bên NDVI
+      function guardField(key, value, always24h) {
+        const isOk = always24h || isDayWindow;
+        if (isOk && value === 0) {
+          const c = parseFloat(localStorage.getItem(key) || '');
+          if (!isNaN(c)) return c;
+          return 0;
+        }
+        if (value !== 0) { try { localStorage.setItem(key, value); } catch(e){} }
+        return value;
+      }
+
+      const r411g = guardField('mob_r411', r411, false);
+      const n411g = guardField('mob_n411', n411, false);
+      const r412g = guardField('mob_r412', r412, false);
+      const n412g = guardField('mob_n412', n412, false);
+      const angle411g = guardField('mob_angle411', d.angle_up||0, true);  // góc bảo vệ 24/7
+      const angle412g = guardField('mob_angle412', d.angle_down||0, true); // góc bảo vệ 24/7
+
       mobData.ndvi = {
         ndvi: ndviCorrect,
         nd411: ndviCorrect, nd412: ndviCorrect, 
-        r411, n411, angle411: d.angle_up||0,
-        r412, n412, angle412: d.angle_down||0,
+        r411: r411g, n411: n411g, angle411: angle411g,
+        r412: r412g, n412: n412g, angle412: angle412g,
         bat: d.battery||0
       };
     }
@@ -684,8 +705,13 @@ function mobRenderNDVI() {
   const content = document.getElementById('mob-content');
   const nd = mobData.ndvi;
 
+  // Ô debug tạm thời — hiển thị ngay cả khi chưa có dữ liệu
+  const debugBox = `<div style="background:#fff3cd;color:#664d03;padding:8px 12px;border-radius:8px;margin-bottom:10px;font-size:11px;word-break:break-all;">
+    🔍 DEBUG: ${window.__ndviDebug || 'Chưa có dữ liệu debug'}
+  </div>`;
+
   if (!nd) {
-    content.innerHTML = `<div class="mob-loading">
+    content.innerHTML = debugBox + `<div class="mob-loading">
       <i class="fas fa-leaf fa-2x mb-3 d-block" style="color:#adb5bd"></i>
       Chưa có dữ liệu NDVI
     </div>`;
@@ -700,7 +726,7 @@ function mobRenderNDVI() {
   else if (avg < 0.6) { health='Phát triển khá';       healthColor='#5a8c1a'; healthBg='#f0f7e0'; }
   else                { health='Phát triển tốt ✓';     healthColor='#2d6a0f'; healthBg='#e8f5e0'; }
 
-  content.innerHTML = `
+      content.innerHTML = `
     <div class="mob-ndvi-card">
       <div class="mob-ndvi-header">
         <div>
